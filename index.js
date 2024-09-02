@@ -26,7 +26,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Configure CORS to allow requests from your frontend
 app.use(cors({
-  origin: 'http://localhost:3000',    //replace during prod
+  origin: 'http://localhost:3000',                                              //replace during prod
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
@@ -34,7 +34,6 @@ app.use(cors({
 app.post('/api/import', upload.array('files', 5), async (req, res) => {
   try {
     console.log('Files Details:', req.files);
-    console.log('Body:', req.body);
     console.log('Body Details:', req.body.importRequest);
 
     let data = new FormData();
@@ -45,29 +44,29 @@ app.post('/api/import', upload.array('files', 5), async (req, res) => {
     // });
 
     data.append('importRequest', req.body.importRequest);
+
     req.files.forEach(file => {
       data.append('files', file.buffer, {filename:file.originalname, contentType: 'text/csv'});
     });
     
-  
-
     let config = {
       method: 'post',
       maxBodyLength: Infinity,
       url: 'https://api.hubapi.com/crm/v3/imports',
       headers: { 
-        // 'Content-Type': 'multipart/form-data', 
+        'Content-Type': 'multipart/form-data', 
         'Accept': 'application/json',
         'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`, 
         ...data.getHeaders()
       },
       data : data
     };
-
+    
     const response = await axios.request(config);
-    console.log(JSON.stringify(response.data));
-    // res.status(200).json(response.data);
-    res.status(200).send("Successfully Added File");
+    console.log(JSON.stringify(response.data,null,1));
+    res.status(200).json(response.data);
+    
+    // res.status(200).send("Success!");
   } catch (error) {
     console.error(error.response ? error.response.data : error.message);
     res.status(error.response ? error.response.status : 500).send(error.response ? error.response.data : 'Server Error');
