@@ -38,11 +38,6 @@ app.post('/api/import', upload.array('files', 5), async (req, res) => {
 
     let data = new FormData();
 
-    // req.files.forEach(file => {
-    //   console.log(`File: ${file.originalname}, Size: ${file.buffer.length}`);
-    //   console.log(`Content (utf8):\n${file.buffer.toString('utf8')}`);
-    // });
-
     data.append('importRequest', req.body.importRequest);
 
     req.files.forEach(file => {
