@@ -1,4 +1,6 @@
 require('dotenv').config();
+
+const createNewRecords = require('./util')
 const axios = require('axios');
 const express = require('express');
 const cors = require('cors');
@@ -6,7 +8,6 @@ const multer = require('multer');
 const path = require('path');
 const FormData = require('form-data');
 
-//create a server 
 const app = express();
 const port = process.env.PORT || 8080;
 
@@ -26,10 +27,28 @@ app.use(express.urlencoded({ extended: true }));
 
 // Configure CORS to allow requests from your frontend
 app.use(cors({
-  origin: 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com',                              //replace during prod
+  // origin: 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com',                              //replace during prod
+  origin: 'http://localhost:3000',                              //replace during prod
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
+app.post('/upload/contacts', async (req, res) => {
+  try {
+    // console.log(req.body.contact);
+    // console.log(req.body.company);
+    const Contact = req.body.contact;
+    const Company = req.body.company;
+
+    const response = await createNewRecords(Contact, Company);
+
+    res.status(200).send("Success. Data received in backend server.");
+
+  }catch (error){
+    console.error(error.response ? error.response.data : error.message);
+    res.status(error.response ? error.response.status : 500).send(error.response ? error.response.data : 'Server Error');
+  }
+})
 
 app.post('/api/import', upload.array('files', 5), async (req, res) => {
   try {
@@ -67,6 +86,8 @@ app.post('/api/import', upload.array('files', 5), async (req, res) => {
     res.status(error.response ? error.response.status : 500).send(error.response ? error.response.data : 'Server Error');
   }
 });
+
+//create a new webhook whenever there a new contact, get the details for that certain contact such as the 
 
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
