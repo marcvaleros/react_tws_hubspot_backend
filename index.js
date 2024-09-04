@@ -1,6 +1,6 @@
 require('dotenv').config();
 
-const createNewRecords = require('./util')
+const {createNewRecords} = require('./util')
 const axios = require('axios');
 const express = require('express');
 const cors = require('cors');
@@ -87,7 +87,6 @@ app.post('/api/import', upload.array('files', 5), async (req, res) => {
   }
 });
 
-//create a new webhook whenever there a new contact, get the details for that certain contact such as the 
 
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
