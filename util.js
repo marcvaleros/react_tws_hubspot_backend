@@ -8,21 +8,79 @@ async function createNewRecords(contactData, companyData) {
   try {
     for (const contact of Object.values(contactData)) {             
       const contactID = await checkContactRecord(contact);
-
+      
       if (contactID){
-        const dealID = await checkDealRecord(contact, contactID);   //check if the deal already existed or create a new one, get the id and associate
-        if(dealID){
+        const companyID = await checkCompanyRecord(contact, contactID);
+        const dealID = await checkDealRecord(contact, contactID);           //check if the deal already existed or create a new one, get the id and associate
+          if(dealID && companyID){
+            await associateCompanyToDeal(companyID,dealID);             
           await associateContactToDeal(contactID,dealID);             
         }else{
+          console.log("Company ID is undefined. Creating Associations Failed.");
           console.log("Deal ID is undefined. Creating Associations Failed.");
         }
       }else{
         console.log("Contact ID is undefined. Creating Checking For Deal Records Failed.");
       }
-      // await delay(100);                                             // Add a delay between each contact creation to avoid hitting API rate limits
+      // await delay(100);                                                 // Add a delay between each contact creation to avoid hitting API rate limits
     }
   } catch (error) {
     console.log(`Upload contacts failed. Error: ${error}`);
+  }
+}
+
+//Function to check if there are existing companies associated for the contact, if not create the company 
+async function checkCompanyRecord(contact, contactID){
+  try {
+    const res = await axios.get(`${HUBSPOT_BASE_URL}/crm/v3/objects/contacts/${contactID}/associations/companies`, {
+      headers: {
+        'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+        'Content-Type' : 'application/json',
+      }
+    });
+
+    if(res.data.results.length < 0){
+        try {
+          const companyID = await createNewCompany(contact);
+          return companyID;
+        } catch (error) {
+          console.log(`Failed Creating New Company. Error: ${error}`);
+        }
+    }else{
+      console.log(`Associated Company Found. Returning Company ID: ${res.data.results[0].id}`);
+      return res.data.results[0].id;  //returns company ID
+    }
+  } catch (error) {
+    console.log(`Failed to fetch associated company information. Company may not exist. Error: ${error}`);
+  }
+}
+
+//Function to create a new company
+
+async function createNewCompany(contact){
+  
+}
+
+//Function that associates the company with the deal using their ids
+async function associateCompanyToDeal(companyID, dealID){
+  const fromObjectType = 'companies';
+  const fromObjectId = companyID;
+  const toObjectType = 'deals';
+  const toObjectId = dealID;
+
+  try {
+    const res = await axios.put(`${HUBSPOT_BASE_URL}/crm/v4/objects/${fromObjectType}/${fromObjectId}/associations/default/${toObjectType}/${toObjectId}`,{}, {
+      headers: {
+        'Authorization' : `Bearer ${process.env.HUBSPOT_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log(`Company ID ${companyID} associated with Deal ID ${dealID}`);
+    console.log("Create association result: ", res.data);
+    
+  } catch (error) {
+    console.log("Error Associating Company with Deals ", error);
   }
 }
 
