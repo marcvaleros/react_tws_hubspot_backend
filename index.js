@@ -35,8 +35,6 @@ app.use(cors({
 
 app.post('/upload/contacts', async (req, res) => {
   try {
-    // console.log(req.body.contact);
-    // console.log(req.body.company);
     const Contact = req.body.contact;
     const Company = req.body.company;
 
