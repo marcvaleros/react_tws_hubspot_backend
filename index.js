@@ -25,29 +25,26 @@ app.use(express.urlencoded({ extended: true }));
 
 // Configure CORS to allow requests from your frontend
 app.use(cors({
-  // origin: 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com',                              //replace during prod
-  origin: 'http://localhost:3000',                              //replace during prod
+  // origin: 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com',                           //replace during prod
+  origin: 'http://localhost:3000',                                                                
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-app.post('/upload/contacts', upload.array('files', 3), async (req, res) => {
+app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
   try {
     const contactBuffer = req.files[0].buffer;
     const companyBuffer = req.files[1].buffer;
     const contactBuffer2 = req.files[2].buffer;
+    const projectBuffer = req.files[3].buffer;
     const filename = req.body.filename;
     const Contact = await parseCsvBuffer(contactBuffer);
     const Company = await parseCsvBuffer(companyBuffer);
     
-    //first import using the import API
-    const importResponse = await importToHubspot(filename, contactBuffer2, companyBuffer);
+    const importResponse = await importToHubspot(filename, contactBuffer2, companyBuffer, projectBuffer);
 
-    // Function to add delay
     const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-    
-    // Add a delay before creating new records
-    await delay(10000); // Delay for 10 seconds (10000 milliseconds)
+    await delay(12000);
     
     if(importResponse !== 0){
       const response = await createNewRecords(Contact, Company);

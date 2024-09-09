@@ -4,7 +4,6 @@ const Papa = require('papaparse');
 const FormData = require('form-data');
 
 const HUBSPOT_BASE_URL = 'https://api.hubapi.com';
-// const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function createNewRecords(contactData, companyData) {
   try {
@@ -13,26 +12,26 @@ async function createNewRecords(contactData, companyData) {
 
     for (const contact of contactData) {
       const contactID = await checkContactRecord(contact);
-      // if (contactID){
-      //   const companyID = await checkCompanyRecord(contact, contactID);
-      //   const dealID = await checkDealRecord(contact, contactID);        //check if the deal already existed or create a new one, returns id
-      //   if(dealID && companyID){
-      //     try {
-      //       await associateCompanyToDeal(companyID,dealID);             
-      //       await associateContactToDeal(contactID,dealID);   
-      //       successCount++;          
-      //     } catch (error) {
-      //       console.log("Failed creating associations for contacts, company and deals.");
-      //       failureCount++;
-      //     }
-      //   }else{
-      //     console.log("Company ID or Deal ID is undefined.");
-      //     failureCount++;
-      //   }
-      // }else{
-      //   console.log("Contact ID is undefined. Creating Checking For Deal Records Failed.");
-      //   failureCount++;
-      // }
+      if (contactID !== 0){
+        const companyID = await checkCompanyRecord(contact, contactID);
+        const dealID = await checkDealRecord(contact, contactID);        //check if the deal already existed or create a new one, returns id
+        if(dealID && companyID){
+          try {
+            await associateCompanyToDeal(companyID,dealID);             
+            await associateContactToDeal(contactID,dealID);   
+            successCount++;          
+          } catch (error) {
+            console.log("Failed creating associations for contacts, company and deals.");
+            failureCount++;
+          }
+        }else{
+          console.log("Company ID or Deal ID is undefined.");
+          failureCount++;
+        }
+      }else{
+        console.log("Contact ID is undefined. Checking For Deal Records Failed.");
+        failureCount++;
+      }
     }
 
     if (successCount > 0 && failureCount === 0) {
@@ -189,8 +188,9 @@ async function associateContactToDeal(contactID, dealID){
 // Function to check if the deal already exists, and create a new deal if not
 async function checkDealRecord(contact, contactID) {
   try {
-    const dealName = `${contact["Project Title"]}_${contact["Project ID"]}`; 
-
+    const dealName = `${contact["Project Title"]}_${contact["Project ID"]}`;
+    console.log("THIS IS THE DEAL NAME: ", dealName);
+    
     const requestBody = {
       "filters": [
         {
@@ -327,12 +327,14 @@ async function checkContactRecord(contact){
         const newContactID = await createNewContact(contact);  //create a new hubspot contact and returns the id
         return newContactID;
       } catch (error) {
-        console.log(`An error occured while creating a contact: ${error}`); 
+        console.log(`An error occured while creating a contact: ${error}`);
+        return 0;
       }
     }
 
   } catch (error) {
       console.log(`Failed to fetch contact information. Contact does not exist yet. Error: ${error}`);
+      return 0;
   }
 }
 
@@ -365,14 +367,16 @@ async function createNewContact(contact){
       return createResponse.data.id;
     }else{
       console.log(`Failed to create new contact.`);
+      return 0;
     }
 
   } catch (error) {
     console.log(`An error occurred while creating a contact. ${error}`);
+    return 0;
   }
 }
 
-async function importToHubspot (fileName, contactBuffer, companyBuffer) {
+async function importToHubspot (fileName, contactBuffer, companyBuffer, projectBuffer) {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const baseFileName = fileName.replace('.csv', '');
   const formattedFileName = `${baseFileName}_${timestamp}`;
@@ -381,6 +385,7 @@ async function importToHubspot (fileName, contactBuffer, companyBuffer) {
     "name": formattedFileName,
     "importOperations": {
       "0-1": "UPSERT",
+      "0-3": "UPSERT",
     },
     "files": [
     {
@@ -471,7 +476,36 @@ async function importToHubspot (fileName, contactBuffer, companyBuffer) {
           },
         ]
       }
-    }
+    },
+    {
+      "fileName" : `Construct Connect Projects.csv`,
+      "fileFormat": "CSV",
+      "fileImportPage": {
+        "hasHeader": true,
+        "columnMappings": [
+          {
+            "columnObjectTypeId": "0-3",
+            "columnName": "Dealname",
+            "propertyName": "dealname",
+          },
+          {
+            "columnObjectTypeId": "0-3",
+            "columnName": "Pipeline",
+            "propertyName": "pipeline",
+          },
+          {
+            "columnObjectTypeId": "0-3",
+            "columnName": "Dealstage",
+            "propertyName": "dealstage",
+          },
+          {
+            "columnObjectTypeId": "0-3",
+            "columnName": "Description",
+            "propertyName": "description",
+          },
+        ]
+      }
+    },
     // ,
     // {
     //   "fileName": `Construct Connect Company.csv`,
@@ -504,7 +538,7 @@ async function importToHubspot (fileName, contactBuffer, companyBuffer) {
   let form = new FormData();
 
   form.append('files', contactBuffer, 'Construct Connect Contacts.csv');
-  // form.append('files', companyBuffer, 'Construct Connect Company.csv');
+  form.append('files', projectBuffer, 'Construct Connect Projects.csv');
   form.append('importRequest', JSON.stringify(importRequest));
 
   try {
