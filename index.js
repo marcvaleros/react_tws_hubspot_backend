@@ -1,12 +1,10 @@
 require('dotenv').config();
 
-const {createNewRecords} = require('./util')
+const {createNewRecords,parseCsvBuffer,importToHubspot} = require('./util')
 const axios = require('axios');
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
-const path = require('path');
-const FormData = require('form-data');
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -33,58 +31,36 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-app.post('/upload/contacts', async (req, res) => {
+app.post('/upload/contacts', upload.array('files', 3), async (req, res) => {
   try {
-    const Contact = req.body.contact;
-    const Company = req.body.company;
+    const contactBuffer = req.files[0].buffer;
+    const companyBuffer = req.files[1].buffer;
+    const contactBuffer2 = req.files[2].buffer;
+    const filename = req.body.filename;
+    const Contact = await parseCsvBuffer(contactBuffer);
+    const Company = await parseCsvBuffer(companyBuffer);
+    
+    //first import using the import API
+    const importResponse = await importToHubspot(filename, contactBuffer2, companyBuffer);
 
-    const response = await createNewRecords(Contact, Company);
-
-    res.status(200).send("Success. Data received in backend server.");
+    // Function to add delay
+    const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+    
+    // Add a delay before creating new records
+    await delay(10000); // Delay for 10 seconds (10000 milliseconds)
+    
+    if(importResponse !== 0){
+      const response = await createNewRecords(Contact, Company);
+      res.status(200).send(response);
+    }else{
+      res.status(400).send({ message: 'Import failed, no records were created.' });
+    }
 
   }catch (error){
     console.error(error.response ? error.response.data : error.message);
     res.status(error.response ? error.response.status : 500).send(error.response ? error.response.data : 'Server Error');
   }
 })
-
-app.post('/api/import', upload.array('files', 5), async (req, res) => {
-  try {
-    console.log('Files Details:', req.files);
-    console.log('Body Details:', req.body.importRequest);
-
-    let data = new FormData();
-
-    data.append('importRequest', req.body.importRequest);
-
-    req.files.forEach(file => {
-      data.append('files', file.buffer, {filename:file.originalname, contentType: 'text/csv'});
-    });
-    
-    let config = {
-      method: 'post',
-      maxBodyLength: Infinity,
-      url: 'https://api.hubapi.com/crm/v3/imports',
-      headers: { 
-        'Content-Type': 'multipart/form-data', 
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`, 
-        ...data.getHeaders()
-      },
-      data : data
-    };
-    
-    const response = await axios.request(config);
-    console.log(JSON.stringify(response.data,null,1));
-    res.status(200).json(response.data);
-    
-    // res.status(200).send("Success!");
-  } catch (error) {
-    console.error(error.response ? error.response.data : error.message);
-    res.status(error.response ? error.response.status : 500).send(error.response ? error.response.data : 'Server Error');
-  }
-});
-
 
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);

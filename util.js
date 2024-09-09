@@ -1,64 +1,143 @@
 require('dotenv').config();
 const axios = require('axios');
+const Papa = require('papaparse');
+const FormData = require('form-data');
 
 const HUBSPOT_BASE_URL = 'https://api.hubapi.com';
 // const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function createNewRecords(contactData, companyData) {
   try {
-    for (const contact of Object.values(contactData)) {             
+    let successCount = 0;
+    let failureCount = 0;
+
+    for (const contact of contactData) {
       const contactID = await checkContactRecord(contact);
-      
-      if (contactID){
-        const companyID = await checkCompanyRecord(contact, contactID);
-        const dealID = await checkDealRecord(contact, contactID);           //check if the deal already existed or create a new one, get the id and associate
-          if(dealID && companyID){
-            await associateCompanyToDeal(companyID,dealID);             
-          await associateContactToDeal(contactID,dealID);             
-        }else{
-          console.log("Company ID is undefined. Creating Associations Failed.");
-          console.log("Deal ID is undefined. Creating Associations Failed.");
-        }
-      }else{
-        console.log("Contact ID is undefined. Creating Checking For Deal Records Failed.");
-      }
-      // await delay(100);                                                 // Add a delay between each contact creation to avoid hitting API rate limits
+      // if (contactID){
+      //   const companyID = await checkCompanyRecord(contact, contactID);
+      //   const dealID = await checkDealRecord(contact, contactID);        //check if the deal already existed or create a new one, returns id
+      //   if(dealID && companyID){
+      //     try {
+      //       await associateCompanyToDeal(companyID,dealID);             
+      //       await associateContactToDeal(contactID,dealID);   
+      //       successCount++;          
+      //     } catch (error) {
+      //       console.log("Failed creating associations for contacts, company and deals.");
+      //       failureCount++;
+      //     }
+      //   }else{
+      //     console.log("Company ID or Deal ID is undefined.");
+      //     failureCount++;
+      //   }
+      // }else{
+      //   console.log("Contact ID is undefined. Creating Checking For Deal Records Failed.");
+      //   failureCount++;
+      // }
     }
+
+    if (successCount > 0 && failureCount === 0) {
+      return "Successfully imported all data.";
+    } else if (successCount > 0 && failureCount > 0) {
+      return `Partial success: ${successCount} records imported successfully, ${failureCount} failed.`;
+    } else {
+      return "Import failed. No records were successfully imported.";
+    }
+
   } catch (error) {
     console.log(`Upload contacts failed. Error: ${error}`);
+    return "Import failed due to an internal error. Please try again.";
   }
 }
 
 //Function to check if there are existing companies associated for the contact, if not create the company 
 async function checkCompanyRecord(contact, contactID){
   try {
-    const res = await axios.get(`${HUBSPOT_BASE_URL}/crm/v3/objects/contacts/${contactID}/associations/companies`, {
+    const domain = getDomainName(contact.Email, contact.Website);
+    requestBody = {
+      "filters": [
+        {
+          "propertyName": "domain",
+          "operator": "CONTAINS_TOKEN",
+          "value": `**${domain}`
+        }
+      ],
+      "sorts": [{
+          "propertyName": "createdate",
+          "direction": "DESCENDING"
+        }],
+      "properties": [
+        "id",
+        "domain",
+        "name",
+        "createdate",
+      ],
+      "limit": 1,
+    };
+
+    const res = await axios.post(`${HUBSPOT_BASE_URL}/crm/v3/objects/companies/search`, requestBody, {
       headers: {
         'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
-        'Content-Type' : 'application/json',
+        'Content-Type': 'application/json',
       }
     });
-
-    if(res.data.results.length < 0){
-        try {
-          const companyID = await createNewCompany(contact);
-          return companyID;
-        } catch (error) {
-          console.log(`Failed Creating New Company. Error: ${error}`);
-        }
-    }else{
+    
+    if(res.data && res.data.total > 0){
       console.log(`Associated Company Found. Returning Company ID: ${res.data.results[0].id}`);
-      return res.data.results[0].id;  //returns company ID
+      return res.data.results[0].id;
+    }else{
+      console.log(`Did not found associated company. Creating New Company...`);
+      try {
+        const companyID = await createNewCompany(contact);
+        console.log(`Successfully created a new company record with ID: ${companyID}`);
+        return companyID;
+      } catch (error) {
+        console.log(`Creation of New Company Failed. Error: ${error}`);
+      }
     }
+    
   } catch (error) {
     console.log(`Failed to fetch associated company information. Company may not exist. Error: ${error}`);
   }
 }
 
-//Function to create a new company
-
+//Function to create a new company and returns the id of newly created company
 async function createNewCompany(contact){
+  const {Company, Phone, Email, Website, City, State, ZIP} = contact;
+  const Domain = getDomainName(Email, Website);
+  const industry = contact["Project Category"].toUpperCase();
   
+  const requestBody = {
+    "properties": {
+      "name": Company,
+      "domain": Domain,
+      "city": City,
+      "industry": industry,
+      "phone": Phone,
+      "state": State,
+      "zip": ZIP,
+    }
+  }
+  
+  try {
+    const createResponse = await axios.post(`${HUBSPOT_BASE_URL}/crm/v3/objects/companies`, requestBody, {
+      headers: {
+        'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+        'Content-Type': 'application/json',
+      }
+    })
+
+    console.log("This is the company create response: ", JSON.stringify(createResponse.data,null,1));
+    
+    if(createResponse.data){
+      console.log(`Created new company with ID: ${createResponse.data.id}`);
+      return createResponse.data.id;
+    }else{
+      console.log(`Failed to create new company.`);
+    }
+
+  } catch (error) {
+    console.log(`An error occurred while creating a company. ${error}`);
+  }
 }
 
 //Function that associates the company with the deal using their ids
@@ -77,7 +156,7 @@ async function associateCompanyToDeal(companyID, dealID){
     });
 
     console.log(`Company ID ${companyID} associated with Deal ID ${dealID}`);
-    console.log("Create association result: ", res.data);
+    // console.log("Create association result: ", res.data);
     
   } catch (error) {
     console.log("Error Associating Company with Deals ", error);
@@ -100,7 +179,7 @@ async function associateContactToDeal(contactID, dealID){
     });
 
     console.log(`Contact ID ${contactID} associated with Deal ID ${dealID}`);
-    console.log("Create association result: ", res);
+    // console.log("Create association result: ", JSON.stringify(res.data,null,1));
     
   } catch (error) {
     console.log("Error Associating Contact with Deals ", error);
@@ -147,8 +226,10 @@ async function checkDealRecord(contact, contactID) {
       console.log(`Existing deal found with ID: ${response.data.results[0].id}`);
       return response.data.results[0].id;
     } else {
+      console.log("No existing deal found. Printing the response data. Creating a new deal...");
+      console.log(`Deal Record Search Response: ${JSON.stringify(response.data,null,1)}`);
+      
       const newDealID = await createNewDeal(contact, contactID);
-      console.log("No existing deal found. Created a new deal with ID: ",newDealID);
       return newDealID;
     }
 
@@ -196,55 +277,38 @@ async function checkContactRecord(contact){
   try {
     let email = contact.Email;
     let phone = contact.Phone;
-    let requestBody = {};
+    let requestBody = {
+      "filters": [],
+      "sorts": [{
+        "propertyName": "createdate",
+        "direction": "DESCENDING"
+      }],
+      "properties": [
+        "id",
+        "phone",
+        "email",
+        "firstname",
+        "lastname",
+        "createdate",
+        "hs_lead_status",
+      ],
+      "limit": 1,
+    };
+
+    console.log(`Email: ${email} & Phone: ${phone}`);
+
     if(email){
-      requestBody = {
-        "filters": [
-          {
-            "propertyName": "email",
-            "operator": "CONTAINS_TOKEN",
-            "value": `*${email}`
-          }
-        ],
-        "sorts": [{
-            "propertyName": "createdate",
-            "direction": "DESCENDING"
-          }],
-        "properties": [
-          "id",
-          "phone",
-          "email",
-          "firstname",
-          "lastname",
-          "createdate",
-          "hs_lead_status",
-        ],
-        "limit": 1,
-      };
+      requestBody.filters.push({
+        "propertyName": "email",
+        "operator": "EQ",
+        "value": email
+      });
     }else if(phone){
-      requestBody = {
-        "filters": [
-          {
-            "propertyName": "phone",
-            "operator": "CONTAINS_TOKEN",
-            "value": `*${phone}`
-          }
-        ],
-        "sorts": [{
-            "propertyName": "createdate",
-            "direction": "DESCENDING"
-          }],
-        "properties": [
-          "id",
-          "phone",
-          "email",
-          "firstname",
-          "lastname",
-          "createdate",
-          "hs_lead_status",
-        ],
-        "limit": 1,
-      };
+      requestBody.filters.push({
+        "propertyName": "phone",
+        "operator": "EQ",
+        "value": phone
+      });
     }
 
     const response = await axios.post(`${HUBSPOT_BASE_URL}/crm/v3/objects/contacts/search`, requestBody, {
@@ -253,18 +317,18 @@ async function checkContactRecord(contact){
         'Content-Type': 'application/json',
       }
     });
-
-    if(response.data.total === 0){
+    
+    if(response.data.total > 0){  
+      console.log(`${response.data.results[0].id}`);
+      return response.data.results[0].id;  
+    }else{
       console.log("\nThere are no associated contact data, create a new contact.");
       try {
         const newContactID = await createNewContact(contact);  //create a new hubspot contact and returns the id
         return newContactID;
       } catch (error) {
-        console.log(`An error occured while creating a contact. ${error}`);   
+        console.log(`An error occured while creating a contact: ${error}`); 
       }
-    }else{
-      console.log(`${response.data.results[0].id}`);
-      return response.data.results[0].id;                      //return the existing contact id to be used for the associations 
     }
 
   } catch (error) {
@@ -308,6 +372,198 @@ async function createNewContact(contact){
   }
 }
 
+async function importToHubspot (fileName, contactBuffer, companyBuffer) {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const baseFileName = fileName.replace('.csv', '');
+  const formattedFileName = `${baseFileName}_${timestamp}`;
+
+  let importRequest = {
+    "name": formattedFileName,
+    "importOperations": {
+      "0-1": "UPSERT",
+    },
+    "files": [
+    {
+      "fileName": `Construct Connect Contacts.csv`,
+      "fileFormat": "CSV",
+      "fileImportPage": {
+        "hasHeader": true,
+        "columnMappings": [
+          {
+            "columnObjectTypeId": "0-1",
+            "columnName": "Name",
+            "propertyName": "firstname"
+          },
+          // {
+          //   "columnObjectTypeId": "0-1",
+          //   "columnName": "Project Title",
+          //   "propertyName": "project"
+          // },
+          {
+            "columnObjectTypeId": "0-1",
+            "columnName": "Role",
+            "propertyName": "jobtitle"
+          },
+          // {
+          //   "columnObjectTypeId": "0-1",
+          //   "columnName": "Company",
+          //   "toColumnObjectTypeId": "0-2",
+          //   "propertyName": null,
+          //   "foreignKeyType": {
+          //     "associationTypeId" : 279,
+          //     "associationCategory": "HUBSPOT_DEFINED"
+          //   }
+          // },
+          {
+            "columnObjectTypeId": "0-1",
+            "columnName": "Phone",
+            "propertyName": "phone"
+          },
+          {
+            "columnObjectTypeId": "0-1",
+            "columnName": "Email",
+            "propertyName": "email",
+          },
+          {
+            "columnObjectTypeId": "0-1",
+            "columnName": "Website",
+            "propertyName": "website"
+          },
+          // {
+          //   "columnObjectTypeId": "0-1",
+          //   "columnName": "Project Description",
+          //   "propertyName": "hs_content_membership_notes"
+          // },
+          // {
+          //   "columnObjectTypeId": "0-1",
+          //   "columnName": "Building Uses",
+          //   "propertyName": "building_uses"
+          // },
+          // {
+          //   "columnObjectTypeId": "0-1",
+          //   "columnName": "Project Types",
+          //   "propertyName": "project_types"
+          // },
+          // {
+          //   "columnObjectTypeId": "0-1",
+          //   "columnName": "Project Category",
+          //   "propertyName": "primary_industry"
+          // },
+          {
+            "columnObjectTypeId": "0-1",
+            "columnName": "Address",
+            "propertyName": "address"
+          },
+          {
+            "columnObjectTypeId": "0-1",
+            "columnName": "City",
+            "propertyName": "city"
+          },
+          {
+            "columnObjectTypeId": "0-1",
+            "columnName": "State",
+            "propertyName": "state"
+          },
+          {
+            "columnObjectTypeId": "0-1",
+            "columnName": "ZIP",
+            "propertyName": "zip"
+          },
+        ]
+      }
+    }
+    // ,
+    // {
+    //   "fileName": `Construct Connect Company.csv`,
+    //   "fileFormat": "CSV",
+    //   "fileImportPage": {
+    //     "hasHeader": true,
+    //     "columnMappings": [
+    //       {
+    //         "columnObjectTypeId": "0-2",
+    //         "columnName": "Company",
+    //         "propertyName": "name",
+    //         "associationIdentifierColumn": true,
+    //       },
+    //       {
+    //         "columnObjectTypeId": "0-2",
+    //         "columnName": "Website",
+    //         "propertyName": "company_website"
+    //       },
+    //       {
+    //         "columnObjectTypeId": "0-2",
+    //         "columnName": "Domain",
+    //         "propertyName": "domain"
+    //       },
+    //     ]
+    //   }
+    // }
+    ]
+  }
+
+  let form = new FormData();
+
+  form.append('files', contactBuffer, 'Construct Connect Contacts.csv');
+  // form.append('files', companyBuffer, 'Construct Connect Company.csv');
+  form.append('importRequest', JSON.stringify(importRequest));
+
+  try {
+    let config = {
+      method: 'post',
+      maxBodyLength: Infinity,
+      url: 'https://api.hubapi.com/crm/v3/imports',
+      headers: { 
+        'Content-Type': 'multipart/form-data', 
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`, 
+        ...form.getHeaders()
+      },
+      data : form
+    };
+    
+    const response = await axios.request(config);
+    console.log(JSON.stringify(response.data,null,1));
+    return 1;
+  } catch (error) {
+    console.log("Error Importing to Hubspot", error.response ? error.response.data : error.message);
+    return 0;
+  } 
+}
+
+const getDomainName = (email, website) => {
+  const getDomainFromEmail = (email) => {
+    return email.substring(email.indexOf("@") + 1);
+  };
+
+  const getDomainFromWebsite = (website) => {
+    const domain = website.match(/^(?:https?:\/\/)?(?:www\.)?([^/]+)/i);
+    return domain ? domain[1] : '';
+  };
+
+  if (email) {
+    return getDomainFromEmail(email);
+  } else if (website) {
+    return getDomainFromWebsite(website);
+  } else {
+    return ''; 
+  }
+};
+
+function parseCsvBuffer(buffer) {
+  return new Promise((resolve, reject) => {
+    const csvString = buffer.toString('utf8');
+
+    Papa.parse(csvString, {
+      header: true, 
+      skipEmptyLines: true,
+      complete: (results) => resolve(results.data),
+      error: (error) => reject(error),
+    });
+  });
+}
+
 module.exports  = {
-  createNewRecords
+  createNewRecords,
+  parseCsvBuffer,
+  importToHubspot
 }
