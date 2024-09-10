@@ -564,6 +564,44 @@ async function importToHubspot (fileName, contactBuffer, companyBuffer, projectB
   } 
 }
 
+async function normalizedPhoneNumber(contactID){
+  try {
+    const res = await axios.get(`${HUBSPOT_BASE_URL}/crm/v3/objects/contacts/${contactID}?properties=phone`, {
+      headers: {
+        'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+        'Content-Type': 'application/json',
+      }
+    });
+    
+    if(res.data && res.data.properties.phone !== null){
+      // console.log(`This is the response ${JSON.stringify(res.data,null,1)}`);
+      const formattedPhone = formatPhoneNumber(res.data.properties.phone);
+      const payload = {
+        "properties": {
+          phone: formattedPhone
+        }
+      }
+
+      try {
+        const patchResponse = await axios.patch(`${HUBSPOT_BASE_URL}/crm/v3/objects/contacts/${contactID}`, payload, {
+          headers: {
+            'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+            'Content-Type': 'application/json',
+          }
+        });
+        // console.log(`This is the patchResponse: ${JSON.stringify(patchResponse.data,null,1)}`);
+      } catch (error) {
+        console.log(`Error Updating the Phone Number`, error);
+      }
+      
+    }else{
+      console.log("Phone number has a null value");
+    }
+  } catch (error) {
+    console.log(`Failed to search contacts with given ID`);
+  }
+}
+
 const getDomainName = (email, website) => {
   const getDomainFromEmail = (email) => {
     return email.substring(email.indexOf("@") + 1);
@@ -596,8 +634,13 @@ function parseCsvBuffer(buffer) {
   });
 }
 
+function formatPhoneNumber(phone){
+  return phone.replace(/[-() ]/g,'');
+}
+
 module.exports  = {
   createNewRecords,
   parseCsvBuffer,
-  importToHubspot
+  importToHubspot,
+  normalizedPhoneNumber
 }

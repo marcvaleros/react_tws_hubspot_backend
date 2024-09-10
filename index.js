@@ -1,6 +1,6 @@
 require('dotenv').config();
 
-const {createNewRecords,parseCsvBuffer,importToHubspot} = require('./util')
+const {createNewRecords,parseCsvBuffer,importToHubspot,normalizedPhoneNumber} = require('./util')
 const axios = require('axios');
 const express = require('express');
 const cors = require('cors');
@@ -58,6 +58,25 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
     res.status(error.response ? error.response.status : 500).send(error.response ? error.response.data : 'Server Error');
   }
 })
+
+
+app.post('/webhook', async (req, res) => {
+  console.log(req.body);
+
+  for (const event of req.body){
+    if(event.subscriptionType === "contact.creation"){
+      console.log(event.objectId);
+      try {
+        await normalizedPhoneNumber(event.objectId);
+      } catch (error) {
+        console.log(`Failed normalizing phone number format. ${error}`);
+      }
+    }
+  }
+
+  res.status(200).send("Successfully Formatted Phone Number");
+})
+
 
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
