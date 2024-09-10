@@ -565,6 +565,9 @@ async function importToHubspot (fileName, contactBuffer, companyBuffer, projectB
 }
 
 async function normalizedPhoneNumber(contactID){
+
+  const containsSymbols = (number) => /[-() ]/.test(number);
+
   try {
     const res = await axios.get(`${HUBSPOT_BASE_URL}/crm/v3/objects/contacts/${contactID}?properties=phone`, {
       headers: {
@@ -574,24 +577,30 @@ async function normalizedPhoneNumber(contactID){
     });
     
     if(res.data && res.data.properties.phone !== null){
+      let phone = res.data.properties.phone;
       // console.log(`This is the response ${JSON.stringify(res.data,null,1)}`);
-      const formattedPhone = formatPhoneNumber(res.data.properties.phone);
-      const payload = {
-        "properties": {
-          phone: formattedPhone
-        }
-      }
-
-      try {
-        const patchResponse = await axios.patch(`${HUBSPOT_BASE_URL}/crm/v3/objects/contacts/${contactID}`, payload, {
-          headers: {
-            'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
-            'Content-Type': 'application/json',
+      if(containsSymbols(phone)){
+        const formattedPhone = formatPhoneNumber(phone);
+        const payload = {
+          "properties": {
+            phone: formattedPhone
           }
-        });
-        // console.log(`This is the patchResponse: ${JSON.stringify(patchResponse.data,null,1)}`);
-      } catch (error) {
-        console.log(`Error Updating the Phone Number`, error);
+        }
+  
+        try {
+          const patchResponse = await axios.patch(`${HUBSPOT_BASE_URL}/crm/v3/objects/contacts/${contactID}`, payload, {
+            headers: {
+              'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+              'Content-Type': 'application/json',
+            }
+          });
+          // console.log(`This is the patchResponse: ${JSON.stringify(patchResponse.data,null,1)}`);
+        } catch (error) {
+          console.log(`Error Updating the Phone Number`, error);
+        }
+      }else{
+        console.log("The phone number is already the right format.");
+        return;
       }
       
     }else{
