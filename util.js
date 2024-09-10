@@ -5,97 +5,107 @@ const FormData = require('form-data');
 
 const HUBSPOT_BASE_URL = 'https://api.hubapi.com';
 
-async function createNewRecords(contactData, companyData) {
-  try {
-    let successCount = 0;
-    let failureCount = 0;
 
-    for (const contact of contactData) {
-      const contactID = await checkContactRecord(contact);
-      if (contactID !== 0){
-        const companyID = await checkCompanyRecord(contact, contactID);
-        const dealID = await checkDealRecord(contact, contactID);        //check if the deal already existed or create a new one, returns id
-        if(dealID && companyID){
-          try {
-            await associateCompanyToDeal(companyID,dealID);             
-            await associateContactToDeal(contactID,dealID);   
-            successCount++;          
-          } catch (error) {
-            console.log("Failed creating associations for contacts, company and deals.");
-            failureCount++;
-          }
-        }else{
-          console.log("Company ID or Deal ID is undefined.");
-          failureCount++;
-        }
-      }else{
-        console.log("Contact ID is undefined. Checking For Deal Records Failed.");
-        failureCount++;
-      }
-    }
+// Optimize record creation by parallelizing independent operations
+async function createNewRecords(contactData) {
+  try {
+    const recordPromises = contactData.map(contact => processContact(contact));
+    const results = await Promise.all(recordPromises);
+
+    const successCount = results.filter(result => result.success).length;
+    const failureCount = results.length - successCount;
 
     if (successCount > 0 && failureCount === 0) {
-      return "Successfully imported all data.";
+      return { success: true, message: "Successfully imported all data." };
     } else if (successCount > 0 && failureCount > 0) {
-      return `Partial success: ${successCount} records imported successfully, ${failureCount} failed.`;
+      return { success: true, message: `Partial success: ${successCount} records imported successfully, ${failureCount} failed.` };
     } else {
-      return "Import failed. No records were successfully imported.";
+      return { success: false, message: "Import failed. No records were successfully imported." };
     }
 
   } catch (error) {
-    console.log(`Upload contacts failed. Error: ${error}`);
-    return "Import failed due to an internal error. Please try again.";
+    console.error(`Upload contacts failed. Error: ${error}`);
+    return { success: false, message: "Import failed due to an internal error. Please try again." };
+  }
+}
+
+// Process each contact by checking and creating records in parallel
+async function processContact(contact) {
+  try {
+    const contactID = await checkContactRecord(contact);
+    if (contactID !== 0) {
+      const [companyID, dealID] = await Promise.all([
+        checkCompanyRecord(contact, contactID),
+        checkDealRecord(contact, contactID)
+      ]);
+
+      if (companyID && dealID) {
+        await Promise.all([
+          associateCompanyToDeal(companyID, dealID),
+          associateContactToDeal(contactID, dealID)
+        ]);
+        return { success: true };
+      }
+    }
+    return { success: false };
+  } catch (error) {
+    console.error(`Failed to process contact: ${error}`);
+    return { success: false };
   }
 }
 
 //Function to check if there are existing companies associated for the contact, if not create the company 
-async function checkCompanyRecord(contact, contactID){
-  try {
-    const domain = getDomainName(contact.Email, contact.Website);
-    requestBody = {
-      "filters": [
-        {
-          "propertyName": "domain",
-          "operator": "CONTAINS_TOKEN",
-          "value": `**${domain}`
-        }
-      ],
-      "sorts": [{
-          "propertyName": "createdate",
-          "direction": "DESCENDING"
-        }],
-      "properties": [
-        "id",
-        "domain",
-        "name",
-        "createdate",
-      ],
-      "limit": 1,
-    };
+async function checkCompanyRecord(contact, contactID, retries = 100, delay = 5000) {
+  const domain = getDomainName(contact.Email, contact.Website);
+  const requestBody = {
+    filters: [
+      {
+        propertyName: "domain",
+        operator: "CONTAINS_TOKEN",
+        value: `**${domain}`
+      }
+    ],
+    sorts: [{
+        propertyName: "createdate",
+        direction: "DESCENDING"
+      }],
+    properties: [
+      "id",
+      "domain",
+      "name",
+      "createdate",
+    ],
+    limit: 1,
+  };
 
-    const res = await axios.post(`${HUBSPOT_BASE_URL}/crm/v3/objects/companies/search`, requestBody, {
+  try {
+    const response = await fetchWithRetry(`${HUBSPOT_BASE_URL}/crm/v3/objects/companies/search`, {
+      method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
         'Content-Type': 'application/json',
-      }
-    });
-    
-    if(res.data && res.data.total > 0){
-      console.log(`Associated Company Found. Returning Company ID: ${res.data.results[0].id}`);
-      return res.data.results[0].id;
-    }else{
-      console.log(`Did not found associated company. Creating New Company...`);
+      },
+      data: requestBody
+    }, retries, delay);
+
+    if (response.data && response.data.total > 0) {
+      console.log(`Associated Company Found. Returning Company ID: ${response.data.results[0].id}`);
+      return response.data.results[0].id;
+    } else {
+      console.log(`Did not find associated company. Creating New Company...`);
       try {
         const companyID = await createNewCompany(contact);
         console.log(`Successfully created a new company record with ID: ${companyID}`);
         return companyID;
       } catch (error) {
         console.log(`Creation of New Company Failed. Error: ${error}`);
+        throw error; // Re-throw to handle outside the retry loop
       }
     }
-    
+
   } catch (error) {
-    console.log(`Failed to fetch associated company information. Company may not exist. Error: ${error}`);
+    console.log(`Failed to fetch associated company information. Error: ${error}`);
+    throw error; // Re-throw to handle outside the retry loop
   }
 }
 
@@ -190,7 +200,7 @@ async function checkDealRecord(contact, contactID) {
   try {
     const dealName = `${contact["Project Title"]}_${contact["Project ID"]}`;
     console.log("THIS IS THE DEAL NAME: ", dealName);
-    
+
     const requestBody = {
       "filters": [
         {
@@ -215,11 +225,13 @@ async function checkDealRecord(contact, contactID) {
       "limit": 1
     };
 
-    const response = await axios.post(`${HUBSPOT_BASE_URL}/crm/v3/objects/deals/search`, requestBody, {
+    const response = await fetchWithRetry(`${HUBSPOT_BASE_URL}/crm/v3/objects/deals/search`, {
+      method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
         'Content-Type': 'application/json'
-      }
+      },
+      data: requestBody
     });
 
     if (response.data.total > 0) {
@@ -227,8 +239,8 @@ async function checkDealRecord(contact, contactID) {
       return response.data.results[0].id;
     } else {
       console.log("No existing deal found. Printing the response data. Creating a new deal...");
-      console.log(`Deal Record Search Response: ${JSON.stringify(response.data,null,1)}`);
-      
+      console.log(`Deal Record Search Response: ${JSON.stringify(response.data, null, 1)}`);
+
       const newDealID = await createNewDeal(contact, contactID);
       return newDealID;
     }
@@ -273,68 +285,70 @@ async function createNewDeal(contact, contactID) {
 }
 
 //Function that returns the id of the existing or newly created contact 
-async function checkContactRecord(contact){
+async function checkContactRecord(contact, retries = 100, delay = 5000) {
+  const email = contact.Email;
+  const phone = contact.Phone;
+  let requestBody = {
+    filters: [],
+    sorts: [{
+      propertyName: "createdate",
+      direction: "DESCENDING"
+    }],
+    properties: [
+      "id",
+      "phone",
+      "email",
+      "firstname",
+      "lastname",
+      "createdate",
+      "hs_lead_status",
+    ],
+    limit: 1,
+  };
+
+  console.log(`Email: ${email} & Phone: ${phone}`);
+
+  if (email) {
+    requestBody.filters.push({
+      propertyName: "email",
+      operator: "EQ",
+      value: email
+    });
+  } else if (phone) {
+    requestBody.filters.push({
+      propertyName: "phone",
+      operator: "EQ",
+      value: phone
+    });
+  }
+
   try {
-    let email = contact.Email;
-    let phone = contact.Phone;
-    let requestBody = {
-      "filters": [],
-      "sorts": [{
-        "propertyName": "createdate",
-        "direction": "DESCENDING"
-      }],
-      "properties": [
-        "id",
-        "phone",
-        "email",
-        "firstname",
-        "lastname",
-        "createdate",
-        "hs_lead_status",
-      ],
-      "limit": 1,
-    };
-
-    console.log(`Email: ${email} & Phone: ${phone}`);
-
-    if(email){
-      requestBody.filters.push({
-        "propertyName": "email",
-        "operator": "EQ",
-        "value": email
-      });
-    }else if(phone){
-      requestBody.filters.push({
-        "propertyName": "phone",
-        "operator": "EQ",
-        "value": phone
-      });
-    }
-
-    const response = await axios.post(`${HUBSPOT_BASE_URL}/crm/v3/objects/contacts/search`, requestBody, {
+    const response = await fetchWithRetry(`${HUBSPOT_BASE_URL}/crm/v3/objects/contacts/search`, {
+      method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
         'Content-Type': 'application/json',
-      }
-    });
-    
-    if(response.data.total > 0){  
+      },
+      data: requestBody
+    }, retries, delay);
+
+    if (response.data.total > 0) {
       console.log(`${response.data.results[0].id}`);
-      return response.data.results[0].id;  
-    }else{
+      return response.data.results[0].id;
+    } else {
       console.log("\nThere are no associated contact data, create a new contact.");
       try {
-        const newContactID = await createNewContact(contact);  //create a new hubspot contact and returns the id
+        const newContactID = await createNewContact(contact);  // Create a new HubSpot contact and return the id
         return newContactID;
       } catch (error) {
-        console.log(`An error occured while creating a contact: ${error}`);
+        console.log(`An error occurred while creating a contact: ${error}`);
         return 0;
       }
     }
 
   } catch (error) {
-      console.log(`Failed to fetch contact information. Contact does not exist yet. Error: ${error}`);
-      return 0;
+    console.log(`Failed to fetch contact information. Contact does not exist yet. Error: ${error}`);
+    return 0; // Return 0 or handle as appropriate
   }
 }
 
@@ -645,6 +659,27 @@ function parseCsvBuffer(buffer) {
 
 function formatPhoneNumber(phone){
   return phone.replace(/[-() ]/g,'');
+}
+
+async function fetchWithRetry(url, options, retries = 100, delay = 5000) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await axios(url, options);
+      return response;
+    } catch (error) {
+      if (error.response && error.response.status === 429) {
+        if (i < retries - 1) {
+          console.log(`Rate limit exceeded, retrying after ${delay}ms...`);
+          await new Promise(res => setTimeout(res, delay));
+          delay *= 2; // Exponential backoff
+        } else {
+          throw new Error(`Failed after ${retries} retries: ${error.message}`);
+        }
+      } else {
+        throw error;
+      }
+    }
+  }
 }
 
 module.exports  = {

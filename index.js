@@ -48,7 +48,7 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
     
     if(importResponse !== 0){
       const response = await createNewRecords(Contact, Company);
-      res.status(200).send(response);
+      res.status(200).send(response?.message);
     }else{
       res.status(400).send({ message: 'Import failed, no records were created.' });
     }
