@@ -44,7 +44,7 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
     const importResponse = await importToHubspot(filename, contactBuffer2, companyBuffer, projectBuffer);
 
     const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-    await delay(12000);
+    await delay(20000);
     
     if(importResponse !== 0){
       const response = await createNewRecords(Contact, Company);
