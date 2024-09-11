@@ -5,13 +5,13 @@ const FormData = require('form-data');
 
 const HUBSPOT_BASE_URL = 'https://api.hubapi.com';
 
-async function createNewRecords(contactData, companyData) {
+async function createNewRecords(contactData, companyData, contactsCache) {
   try {
     let successCount = 0;
     let failureCount = 0;
 
     for (const contact of contactData) {
-      const contactID = await checkContactRecord(contact);
+      const contactID = await checkContactRecord(contact, contactsCache);
       if (contactID !== 0){
         const companyID = await checkCompanyRecord(contact, contactID);
         const dealID = await checkDealRecord(contact, contactID);        //check if the deal already existed or create a new one, returns id
@@ -46,6 +46,65 @@ async function createNewRecords(contactData, companyData) {
     console.log(`Upload contacts failed. Error: ${error}`);
     return "Import failed due to an internal error. Please try again.";
   }
+}
+
+//Function that search for recently created contacts with their ids & information
+async function getAllContactsToCache(){
+  let allContacts = [];
+  let hasMore = true;
+  let after = null;
+  const [startOfDayGMT, endOfDayGMT] = await retrieveDate(); 
+
+  while(hasMore){
+    try {
+      const requestBody = {
+        "filters": [
+          {
+            "propertyName": "createdate",
+            "operator": "BETWEEN",
+            "value": startOfDayGMT,
+            "highValue": endOfDayGMT,
+          },
+        ],
+        "sorts": [{
+            "propertyName": "createdate",
+            "direction": "DESCENDING"
+          }],
+        "properties": [
+          "id",
+          "name",
+          "createdate",
+        ],
+        "limit": 100,
+      };
+
+      if(after){
+        requestBody.after = after;
+      }
+    
+      const response = await axios.post(`${HUBSPOT_BASE_URL}/crm/v3/objects/contacts/search`, requestBody, {
+        headers: {
+          'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+          'Content-Type': 'application/json',
+        }
+      });
+
+      allContacts = allContacts.concat(response.data.results);
+      console.log(JSON.stringify(response.data.results,null,1));
+
+     
+      if(response.data.paging && response.data.paging.next){
+        after = response.data.paging.next.after;
+      }else{
+        hasMore = false;
+      }
+      return allContacts;
+    } catch (error) {
+      console.error("Error fetching contacts:", error.response ? error.response.data : error.message);
+      hasMore = false;
+    }
+  }
+
 }
 
 //Function to check if there are existing companies associated for the contact, if not create the company 
@@ -273,10 +332,12 @@ async function createNewDeal(contact, contactID) {
 }
 
 //Function that returns the id of the existing or newly created contact 
-async function checkContactRecord(contact){
+async function checkContactRecord(contact, contactsCache){
   try {
     let email = contact.Email;
     let phone = contact.Phone;
+
+
     let requestBody = {
       "filters": [],
       "sorts": [{
@@ -647,9 +708,35 @@ function formatPhoneNumber(phone){
   return phone.replace(/[-() ]/g,'');
 }
 
+
+function formatDateToGMT8(date) {
+  const offset = 8 * 60 * 60 * 1000; // GMT+8 offset in milliseconds
+  const gmt8Date = new Date(date.getTime() + offset);
+  
+  // Format date to YYYY-MM-DDTHH:mm:ss.SSSZ
+  return gmt8Date.toISOString().slice(0, -1) + 'Z';
+}
+
+async function retrieveDate(){
+  const now = new Date();
+
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const startOfDayGMT = formatDateToGMT8(startOfDay);
+
+  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  const endOfDayGMT = formatDateToGMT8(endOfDay);
+
+  // console.log('Start of Day (GMT+8):', startOfDayGMT);
+  // console.log('End of Day (GMT+8):', endOfDayGMT);
+
+  return [startOfDayGMT, endOfDayGMT];
+}
+
 module.exports  = {
   createNewRecords,
   parseCsvBuffer,
   importToHubspot,
-  normalizedPhoneNumber
+  normalizedPhoneNumber,
+  retrieveDate,
+  getAllContactsToCache
 }

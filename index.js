@@ -1,6 +1,6 @@
 require('dotenv').config();
 
-const {createNewRecords,parseCsvBuffer,importToHubspot,normalizedPhoneNumber} = require('./util')
+const {createNewRecords,parseCsvBuffer,importToHubspot,normalizedPhoneNumber, retrieveDate, getAllContactsToCache} = require('./util')
 const axios = require('axios');
 const express = require('express');
 const cors = require('cors');
@@ -42,12 +42,15 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
     const Company = await parseCsvBuffer(companyBuffer);
     
     const importResponse = await importToHubspot(filename, contactBuffer2, companyBuffer, projectBuffer);
-
+    
     const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     await delay(12000);
+
+    const contactsCache = await getAllContactsToCache();
+    // const dealsCache = await getAllDealsToCache();
     
     if(importResponse !== 0){
-      const response = await createNewRecords(Contact, Company);
+      const response = await createNewRecords(Contact, Company, contactsCache);
       res.status(200).send(response);
     }else{
       res.status(400).send({ message: 'Import failed, no records were created.' });
