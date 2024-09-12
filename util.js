@@ -57,7 +57,7 @@ async function checkCompanyRecord(contact, contactID){
         {
           "propertyName": "domain",
           "operator": "CONTAINS_TOKEN",
-          "value": `**${domain}`
+          "value": domain
         }
       ],
       "sorts": [{
@@ -196,7 +196,7 @@ async function checkDealRecord(contact, contactID) {
         {
           "propertyName": "dealname",
           "operator": "CONTAINS_TOKEN",
-          "value": `**${dealName}`
+          "value": dealName
         }
       ],
       "properties": [
@@ -300,13 +300,13 @@ async function checkContactRecord(contact){
     if(email){
       requestBody.filters.push({
         "propertyName": "email",
-        "operator": "EQ",
+        "operator": "CONTAINS_TOKEN",
         "value": email
       });
     }else if(phone){
       requestBody.filters.push({
         "propertyName": "phone",
-        "operator": "EQ",
+        "operator": "CONTAINS_TOKEN",
         "value": phone
       });
     }
