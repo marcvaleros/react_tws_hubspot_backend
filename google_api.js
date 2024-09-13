@@ -3,10 +3,11 @@ const path = require('path');
 const { Readable } = require('stream');
 
 async function authenticateDrive(){
-  const keyFilePath = path.join(__dirname, 'credentials', 'credentials.json');
+  // const keyFilePath = path.join(__dirname, 'credentials', 'credentials.json');
+  const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS);
   
   const auth = new google.auth.GoogleAuth({
-    keyFile: keyFilePath,
+    credentials,
     scopes: ['https://www.googleapis.com/auth/drive.file']
   });
 
@@ -21,7 +22,7 @@ async function uploadInvalidContacts(fileName, csvStream){
   const fileMetadata = {
     name: fileName,
     parents: ['1_mEcGvBMQ9iDHeIhDiKjnD-TpQoQeEil'],
-    mimeType: 'application/vnd.google-apps.spreadsheet', // automatically convert it to google sheet format 
+    mimeType: 'application/vnd.google-apps.spreadsheet', // automatically convert it to google sheet format
   };
 
   const media = {

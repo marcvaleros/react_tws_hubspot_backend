@@ -27,7 +27,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Configure CORS to allow requests from your frontend
 app.use(cors({
-  origin: 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com/',                           //replace during prod
+  origin: 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com',                           //replace during prod
   // origin: 'http://localhost:3000',                                                                
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
