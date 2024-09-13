@@ -1,9 +1,12 @@
+require('dotenv').config();
 const { google } = require('googleapis');
 const path = require('path');
 
 async function authenticateDrive(){
   // const keyFilePath = path.join(__dirname, 'credentials', 'credentials.json');
   const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS);
+
+  console.log(`This is the creds: ${credentials}`);
   
   const auth = new google.auth.GoogleAuth({
     credentials,
