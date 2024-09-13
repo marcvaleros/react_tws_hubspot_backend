@@ -85,8 +85,6 @@ app.post('/upload-to-drive', upload.single('file'),async (req, res) => {
 
   if (!file) {
     return res.status(400).send('No file uploaded');
-  }else{
-    console.log(JSON.stringify(file,null,1));
   }
   
   const csvBuffer = Buffer.from(file.buffer); 

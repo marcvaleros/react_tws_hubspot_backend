@@ -21,6 +21,7 @@ async function uploadInvalidContacts(fileName, csvStream){
   const fileMetadata = {
     name: fileName,
     parents: ['1_mEcGvBMQ9iDHeIhDiKjnD-TpQoQeEil'],
+    mimeType: 'application/vnd.google-apps.spreadsheet', // automatically convert it to google sheet format 
   };
 
   const media = {
