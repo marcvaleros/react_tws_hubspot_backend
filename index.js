@@ -7,15 +7,38 @@ const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const {Readable} = require('stream');
+const WebSocket = require('ws');
 
 const app = express();
 const port = process.env.PORT || 8080;
+
+const wss = new WebSocket.Server({ port: process.env.WEBSOCKET_PORT || 8081 }); // WebSocket server
+
+wss.on('connection', (ws) => {
+  console.log('Client Connected');
+
+  ws.on('message', (message)=>{
+    console.log('Received Message:', message);
+  });
+
+  ws.on('close', () => {
+    console.log('Client Disconnected');
+  });
+});
+
+
+const broadcastProgress = (progress) => {
+  wss.clients.forEach(client => {
+    if(client.readyState === WebSocket.OPEN){
+      client.send(JSON.stringify({progress}));
+    }
+  });
+};
 
 
 // Configure multer to use memory storage
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
-
 
 app.get('/', (req, res) => {
   res.send('Your server is running.');
@@ -40,10 +63,10 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
     const importResponse = await importToHubspot(filename, contactBuffer2, companyBuffer, projectBuffer);
 
     const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-    await delay(20000);
+    await delay(10000);
     
     if(importResponse !== 0){
-      const response = await createNewRecords(Contact, Company);
+      const response = await createNewRecords(Contact, Company, broadcastProgress);
       res.status(200).send(response);
     }else{
       res.status(400).send({ message: 'Import failed, no records were created.' });
