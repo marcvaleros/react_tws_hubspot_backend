@@ -1,19 +1,44 @@
 require('dotenv').config();
 
 const {createNewRecords,parseCsvBuffer,importToHubspot,normalizedPhoneNumber, retrieveDate, getAllContactsToCache} = require('./util')
+const {uploadInvalidContacts} = require('./google_api');
 const axios = require('axios');
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
+const {Readable} = require('stream');
+const WebSocket = require('ws');
 
 const app = express();
 const port = process.env.PORT || 8080;
+
+const wss = new WebSocket.Server({ port: process.env.WEBSOCKET_PORT || 8081 }); // WebSocket server
+
+wss.on('connection', (ws) => {
+  console.log('Client Connected');
+
+  ws.on('message', (message)=>{
+    console.log('Received Message:', message);
+  });
+
+  ws.on('close', () => {
+    console.log('Client Disconnected');
+  });
+});
+
+
+const broadcastProgress = (progress) => {
+  wss.clients.forEach(client => {
+    if(client.readyState === WebSocket.OPEN){
+      client.send(JSON.stringify({progress}));
+    }
+  });
+};
 
 
 // Configure multer to use memory storage
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
-
 
 app.get('/', (req, res) => {
   res.send('Your server is running.');
@@ -23,13 +48,7 @@ app.get('/', (req, res) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Configure CORS to allow requests from your frontend
-app.use(cors({
-  // origin: 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com',                           //replace during prod
-  origin: 'http://localhost:3000',                                                                
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+app.use(cors());
 
 app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
   try {
@@ -50,7 +69,7 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
     // const dealsCache = await getAllDealsToCache();
     
     if(importResponse !== 0){
-      const response = await createNewRecords(Contact, Company, contactsCache);
+      const response = await createNewRecords(Contact, Company, contactsCache, broadcastProgress);
       res.status(200).send(response);
     }else{
       res.status(400).send({ message: 'Import failed, no records were created.' });
@@ -80,6 +99,32 @@ app.post('/webhook', async (req, res) => {
   res.status(200).send("Successfully Formatted Phone Number");
 })
 
+
+app.post('/upload-to-drive', upload.single('file'),async (req, res) => {
+  const { file } = req;
+
+  if (!file) {
+    return res.status(400).send('No file uploaded');
+  }
+  
+  const csvBuffer = Buffer.from(file.buffer); 
+  const fileStream = new Readable();
+  fileStream.push(csvBuffer);
+  fileStream.push(null);
+  
+  try {
+    const webViewLink = await uploadInvalidContacts(file.originalname, fileStream);
+    
+    if (webViewLink) {
+      res.json({ webViewLink });
+    } else {
+      res.status(400).send("Failed to upload the file to Google Drive");
+    }
+  } catch (error) {
+    console.error("Error during file upload:", error);
+    res.status(500).send("Internal Server Error");
+  }
+});
 
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);

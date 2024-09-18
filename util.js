@@ -5,12 +5,20 @@ const FormData = require('form-data');
 
 const HUBSPOT_BASE_URL = 'https://api.hubapi.com';
 
-async function createNewRecords(contactData, companyData, contactsCache) {
+async function createNewRecords(contactData, companyData, contactsCache, broadcastProgress) {
   try {
     let successCount = 0;
     let failureCount = 0;
-
-    for (const contact of contactData) {
+    const totalRecords = contactData.length;
+    console.log(`This is the total records: ${totalRecords}`);
+    
+    // Function to update progress
+    const updateProgress = (currentIndex) => {
+      const progressPercentage = Math.round((currentIndex / totalRecords) * 100);
+      broadcastProgress(progressPercentage);
+    };
+    
+    for (const [index,contact] of contactData.entries()) {
       const contactID = await checkContactRecord(contact, contactsCache);
       if (contactID !== 0){
         const companyID = await checkCompanyRecord(contact, contactID);
@@ -32,7 +40,11 @@ async function createNewRecords(contactData, companyData, contactsCache) {
         console.log("Contact ID is undefined. Checking For Deal Records Failed.");
         failureCount++;
       }
+
+      updateProgress(index + 1);
     }
+
+    updateProgress(contactData.length);
 
     if (successCount > 0 && failureCount === 0) {
       return "Successfully imported all data.";
@@ -116,7 +128,7 @@ async function checkCompanyRecord(contact, contactID){
         {
           "propertyName": "domain",
           "operator": "CONTAINS_TOKEN",
-          "value": `**${domain}`
+          "value": domain
         }
       ],
       "sorts": [{
@@ -253,12 +265,13 @@ async function checkDealRecord(contact, contactID) {
     const requestBody = {
       "filters": [
         {
-          "propertyName": "dealname",
-          "operator": "CONTAINS_TOKEN",
-          "value": `**${dealName}`
+          "propertyName": "project_id",
+          "operator": "EQ",
+          "value": contact["Project ID"]
         }
       ],
       "properties": [
+        "project_id",
         "dealname",
         "amount",
         "dealstage",
@@ -361,13 +374,13 @@ async function checkContactRecord(contact, contactsCache){
     if(email){
       requestBody.filters.push({
         "propertyName": "email",
-        "operator": "EQ",
+        "operator": "CONTAINS_TOKEN",
         "value": email
       });
     }else if(phone){
       requestBody.filters.push({
         "propertyName": "phone",
-        "operator": "EQ",
+        "operator": "CONTAINS_TOKEN",
         "value": phone
       });
     }
@@ -460,26 +473,11 @@ async function importToHubspot (fileName, contactBuffer, companyBuffer, projectB
             "columnName": "Name",
             "propertyName": "firstname"
           },
-          // {
-          //   "columnObjectTypeId": "0-1",
-          //   "columnName": "Project Title",
-          //   "propertyName": "project"
-          // },
           {
             "columnObjectTypeId": "0-1",
             "columnName": "Role",
             "propertyName": "jobtitle"
           },
-          // {
-          //   "columnObjectTypeId": "0-1",
-          //   "columnName": "Company",
-          //   "toColumnObjectTypeId": "0-2",
-          //   "propertyName": null,
-          //   "foreignKeyType": {
-          //     "associationTypeId" : 279,
-          //     "associationCategory": "HUBSPOT_DEFINED"
-          //   }
-          // },
           {
             "columnObjectTypeId": "0-1",
             "columnName": "Phone",
@@ -495,26 +493,6 @@ async function importToHubspot (fileName, contactBuffer, companyBuffer, projectB
             "columnName": "Website",
             "propertyName": "website"
           },
-          // {
-          //   "columnObjectTypeId": "0-1",
-          //   "columnName": "Project Description",
-          //   "propertyName": "hs_content_membership_notes"
-          // },
-          // {
-          //   "columnObjectTypeId": "0-1",
-          //   "columnName": "Building Uses",
-          //   "propertyName": "building_uses"
-          // },
-          // {
-          //   "columnObjectTypeId": "0-1",
-          //   "columnName": "Project Types",
-          //   "propertyName": "project_types"
-          // },
-          // {
-          //   "columnObjectTypeId": "0-1",
-          //   "columnName": "Project Category",
-          //   "propertyName": "primary_industry"
-          // },
           {
             "columnObjectTypeId": "0-1",
             "columnName": "Address",
@@ -546,6 +524,12 @@ async function importToHubspot (fileName, contactBuffer, companyBuffer, projectB
         "columnMappings": [
           {
             "columnObjectTypeId": "0-3",
+            "columnName": "Project ID",
+            "propertyName": "project_id",
+            "columnType": "HUBSPOT_ALTERNATE_ID" 
+          },
+          {
+            "columnObjectTypeId": "0-3",
             "columnName": "Dealname",
             "propertyName": "dealname",
           },
@@ -567,32 +551,6 @@ async function importToHubspot (fileName, contactBuffer, companyBuffer, projectB
         ]
       }
     },
-    // ,
-    // {
-    //   "fileName": `Construct Connect Company.csv`,
-    //   "fileFormat": "CSV",
-    //   "fileImportPage": {
-    //     "hasHeader": true,
-    //     "columnMappings": [
-    //       {
-    //         "columnObjectTypeId": "0-2",
-    //         "columnName": "Company",
-    //         "propertyName": "name",
-    //         "associationIdentifierColumn": true,
-    //       },
-    //       {
-    //         "columnObjectTypeId": "0-2",
-    //         "columnName": "Website",
-    //         "propertyName": "company_website"
-    //       },
-    //       {
-    //         "columnObjectTypeId": "0-2",
-    //         "columnName": "Domain",
-    //         "propertyName": "domain"
-    //       },
-    //     ]
-    //   }
-    // }
     ]
   }
 
@@ -617,7 +575,7 @@ async function importToHubspot (fileName, contactBuffer, companyBuffer, projectB
     };
     
     const response = await axios.request(config);
-    console.log(JSON.stringify(response.data,null,1));
+    // console.log(JSON.stringify(response.data,null,1)); // import response
     return 1;
   } catch (error) {
     console.log("Error Importing to Hubspot", error.response ? error.response.data : error.message);
