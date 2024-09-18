@@ -1,3 +1,4 @@
 .env
 node_modules/
-credentials/
+credentials/credentials.json
+encrypt.js
