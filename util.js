@@ -345,6 +345,7 @@ async function checkDealRecord(contact, contactID, dealsCache) {
     if(projectID || dealName) {
       //search for the deal id if it exist in the cache first then do the query in hs
       let res = await getDealIDFromCache(projectID, dealName, dealsCache);
+      console.log(`This is returned from deal cache: ${JSON.stringify(res,null,1)}`);
       if(res){
         console.log(`Deal ID found in Cache with value ${res?.id}`);
         return res.id;
@@ -462,6 +463,8 @@ async function checkContactRecord(contact, contactsCache){
     if(email || phone){
       //search for the id of the contcts if it exist in the cache first then do the query in hs
       let res = await getContactIDFromCache(email,phone,contactsCache);
+      console.log(`This is returned from contact cache: ${JSON.stringify(res,null,1)}`);
+      
       if(res){
         console.log(`Contact ID found in Cache with value ${res?.id}`);
         return res.id;

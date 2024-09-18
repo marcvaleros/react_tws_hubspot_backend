@@ -52,14 +52,7 @@ app.use(cors());
 
 app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
   try {
-    // const dealsCache = await getAllDealsToCache();
-    // const deal = await getDealIDFromCache('','', dealsCache);
-    // console.log( `This is the deal id: ${deal?.id}`);
-    // const contactsCache = await getAllContactsToCache();
-    // const contact = await getContactIDFromCache('ira.s@fwrs.us', '7607248131', contactsCache);
-    // console.log( `This is the contact id: ${contact.id}`);
-    
-    const contactBuffer = req.files[0].buffer; // with project ID
+    const contactBuffer = req.files[0].buffer;
     const companyBuffer = req.files[1].buffer;
     const contactBuffer2 = req.files[2].buffer;
     const projectBuffer = req.files[3].buffer;
