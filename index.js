@@ -1,8 +1,7 @@
 require('dotenv').config();
 
-const {createNewRecords,parseCsvBuffer,importToHubspot,normalizedPhoneNumber, retrieveDate, getAllContactsToCache, getAllDealsToCache, getContactIDFromCache, getDealIDFromCache} = require('./util')
+const {createNewRecords,parseCsvBuffer,importToHubspot,normalizedPhoneNumber, getAllContactsToCache, getAllDealsToCache} = require('./util')
 const {uploadInvalidContacts} = require('./google_api');
-const axios = require('axios');
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
