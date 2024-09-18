@@ -4,7 +4,6 @@ const path = require('path');
 const {getCredentials} = require('./decrypt');
 
 async function authenticateDrive(){
-  // const keyFilePath = path.join(__dirname, 'credentials', 'credentials.json');
   const credentialsString = getCredentials();
   const credentials = JSON.parse(credentialsString);
 
