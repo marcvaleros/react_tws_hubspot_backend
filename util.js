@@ -206,12 +206,13 @@ async function checkDealRecord(contact, contactID) {
     const requestBody = {
       "filters": [
         {
-          "propertyName": "dealname",
-          "operator": "CONTAINS_TOKEN",
-          "value": dealName
+          "propertyName": "project_id",
+          "operator": "EQ",
+          "value": contact["Project ID"]
         }
       ],
       "properties": [
+        "project_id",
         "dealname",
         "amount",
         "dealstage",
@@ -462,9 +463,14 @@ async function importToHubspot (fileName, contactBuffer, companyBuffer, projectB
         "columnMappings": [
           {
             "columnObjectTypeId": "0-3",
+            "columnName": "Project ID",
+            "propertyName": "project_id",
+            "columnType": "HUBSPOT_ALTERNATE_ID" 
+          },
+          {
+            "columnObjectTypeId": "0-3",
             "columnName": "Dealname",
             "propertyName": "dealname",
-            // "columnType": "HUBSPOT_ALTERNATE_ID" 
           },
           {
             "columnObjectTypeId": "0-3",
