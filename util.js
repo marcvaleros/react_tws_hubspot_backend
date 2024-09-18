@@ -5,7 +5,7 @@ const FormData = require('form-data');
 
 const HUBSPOT_BASE_URL = 'https://api.hubapi.com';
 
-async function createNewRecords(contactData, companyData, contactsCache, broadcastProgress) {
+async function createNewRecords(contactData, companyData, contactsCache, dealsCache, broadcastProgress) {
   try {
     let successCount = 0;
     let failureCount = 0;
@@ -22,7 +22,7 @@ async function createNewRecords(contactData, companyData, contactsCache, broadca
       const contactID = await checkContactRecord(contact, contactsCache);
       if (contactID !== 0){
         const companyID = await checkCompanyRecord(contact, contactID);
-        const dealID = await checkDealRecord(contact, contactID);        //check if the deal already existed or create a new one, returns id
+        const dealID = await checkDealRecord(contact, contactID, dealsCache);        //check if the deal already existed or create a new one, returns id
         if(dealID && companyID){
           try {
             await associateCompanyToDeal(companyID,dealID);             
@@ -72,7 +72,7 @@ async function getAllContactsToCache(){
       const requestBody = {
         "filters": [
           {
-            "propertyName": "createdate",
+            "propertyName": "lastmodifieddate",
             "operator": "BETWEEN",
             "value": startOfDayGMT,
             "highValue": endOfDayGMT,
@@ -85,11 +85,15 @@ async function getAllContactsToCache(){
         "properties": [
           "id",
           "name",
+          "email",
+          "phone",
           "createdate",
         ],
         "limit": 100,
       };
 
+      console.log(`This is after: ${after}`);
+      
       if(after){
         requestBody.after = after;
       }
@@ -102,21 +106,82 @@ async function getAllContactsToCache(){
       });
 
       allContacts = allContacts.concat(response.data.results);
-      console.log(JSON.stringify(response.data.results,null,1));
+      // console.log(JSON.stringify(response.data.results,null,1));
 
-     
       if(response.data.paging && response.data.paging.next){
+        console.log("more pages!");
         after = response.data.paging.next.after;
       }else{
         hasMore = false;
       }
-      return allContacts;
     } catch (error) {
       console.error("Error fetching contacts:", error.response ? error.response.data : error.message);
       hasMore = false;
     }
   }
 
+  return allContacts;
+}
+
+//Function that search for recently created/modified deals with their ids & information
+async function getAllDealsToCache(){
+  let allDeals = [];
+  let hasMore = true;
+  let after = null;
+  const [startOfDayGMT, endOfDayGMT] = await retrieveDate();
+
+  while(hasMore){
+    try {
+      const requestBody = {
+        "filters": [
+          {
+            "propertyName": "hs_lastmodifieddate",
+            "operator": "BETWEEN",
+            "value": startOfDayGMT,
+            "highValue": endOfDayGMT,
+          },
+        ],
+        "sorts": [{
+          "propertyName": "createdate",
+          "direction": "DESCENDING"
+        }],
+        "properties": [
+          "id",
+          "project_id",
+          "dealname",
+          "createdate",
+          "hs_lastmodifieddate"
+        ],
+        "limit": 100,
+        };
+        console.log(`This is after: ${after}`);
+
+        if(after){
+          requestBody.after = after;
+        }
+        
+        const response = await axios.post(`${HUBSPOT_BASE_URL}/crm/v3/objects/deals/search`, requestBody, {
+          headers: {
+            'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+            'Content-Type': 'application/json',
+          }
+        });
+
+        allDeals = allDeals.concat(response.data.results);
+
+        if(response.data.paging && response.data.paging.next){
+          console.log("more pages!");
+          after = response.data.paging.next.after;
+        }else{
+          hasMore = false;
+        }
+        
+    } catch (error) {
+      console.log("Error Fetching Deals:", error.response ? error.response.data : error.message);
+      hasMore = false;
+    }
+  }
+  return allDeals;
 }
 
 //Function to check if there are existing companies associated for the contact, if not create the company 
@@ -256,55 +321,85 @@ async function associateContactToDeal(contactID, dealID){
   }
 }
 
+async function getDealIDFromCache(projectID, dealName, dealsCache){
+  let res;
+  if(projectID){
+    res = dealsCache.find(deal => {
+      return deal.properties.project_id === projectID
+    });
+  }else if(dealName){
+    res = dealsCache.find(deal => {
+      return deal.properties.dealname === dealName
+    });
+  }
+  return res; ///returns undefined if there are no records found
+}
+
 // Function to check if the deal already exists, and create a new deal if not
-async function checkDealRecord(contact, contactID) {
+async function checkDealRecord(contact, contactID, dealsCache) {
   try {
     const dealName = `${contact["Project Title"]}_${contact["Project ID"]}`;
     console.log("THIS IS THE DEAL NAME: ", dealName);
+    const projectID = contact["Project ID"];
+
+    if(projectID || dealName) {
+      //search for the deal id if it exist in the cache first then do the query in hs
+      let res = await getDealIDFromCache(projectID, dealName, dealsCache);
+      if(res){
+        console.log(`Deal ID found in Cache with value ${res?.id}`);
+        return res.id;
+      }else{
+
+        const requestBody = {
+          "filters": [
+            {
+              "propertyName": "project_id",
+              "operator": "EQ",
+              "value": projectID
+            }
+          ],
+          "properties": [
+            "project_id",
+            "dealname",
+            "amount",
+            "dealstage",
+            "closedate",
+            "pipeline"
+          ],
+          "sorts": [
+            {
+                "propertyName": "createdate", 
+                "direction": "DESCENDING"
+            }
+          ],
+          "limit": 1
+        };
     
-    const requestBody = {
-      "filters": [
-        {
-          "propertyName": "project_id",
-          "operator": "EQ",
-          "value": contact["Project ID"]
+        const response = await axios.post(`${HUBSPOT_BASE_URL}/crm/v3/objects/deals/search`, requestBody, {
+          headers: {
+            'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        });
+    
+        if (response.data.total > 0) {
+          console.log(`Deal ID found in Search Query with value ${response.data.results[0].id}`);
+          return response.data.results[0].id;
+        } else {
+          console.log("\nThere are no associated deal data, create a new deal.");
+          
+          try {
+            const newDealID = await createNewDeal(contact, contactID);
+            return newDealID;
+          } catch (error) {
+            console.log(`Error checking or creating deal: ${error}`);
+            return 0;
+          }
         }
-      ],
-      "properties": [
-        "project_id",
-        "dealname",
-        "amount",
-        "dealstage",
-        "closedate",
-        "pipeline"
-      ],
-      "sorts": [
-        {
-            "propertyName": "createdate", 
-            "direction": "DESCENDING"
-        }
-      ],
-      "limit": 1
-    };
-
-    const response = await axios.post(`${HUBSPOT_BASE_URL}/crm/v3/objects/deals/search`, requestBody, {
-      headers: {
-        'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
-        'Content-Type': 'application/json'
       }
-    });
-
-    if (response.data.total > 0) {
-      console.log(`Existing deal found with ID: ${response.data.results[0].id}`);
-      return response.data.results[0].id;
-    } else {
-      console.log("No existing deal found. Printing the response data. Creating a new deal...");
-      console.log(`Deal Record Search Response: ${JSON.stringify(response.data,null,1)}`);
-      
-      const newDealID = await createNewDeal(contact, contactID);
-      return newDealID;
+    }else{
+      console.log("There's no deal with the given project id or dealname");
     }
-
   } catch (error) {
     console.error(`Error checking or creating deal: ${error}`);
   }
@@ -344,66 +439,87 @@ async function createNewDeal(contact, contactID) {
   }
 }
 
+async function getContactIDFromCache (email, phone, contactsCache){
+  let res;
+  if(email){
+    res = contactsCache.find(contact => {
+      return contact.properties.email === email;
+    });
+  }else if(phone){
+    res = contactsCache.find(contact => {
+      return contact.properties.phone === phone;
+    });
+  }
+  return res; //returns undefined if there are no records found 
+}
+
 //Function that returns the id of the existing or newly created contact 
 async function checkContactRecord(contact, contactsCache){
   try {
     let email = contact.Email;
     let phone = contact.Phone;
 
-
-    let requestBody = {
-      "filters": [],
-      "sorts": [{
-        "propertyName": "createdate",
-        "direction": "DESCENDING"
-      }],
-      "properties": [
-        "id",
-        "phone",
-        "email",
-        "firstname",
-        "lastname",
-        "createdate",
-        "hs_lead_status",
-      ],
-      "limit": 1,
-    };
-
-    console.log(`Email: ${email} & Phone: ${phone}`);
-
-    if(email){
-      requestBody.filters.push({
-        "propertyName": "email",
-        "operator": "CONTAINS_TOKEN",
-        "value": email
-      });
-    }else if(phone){
-      requestBody.filters.push({
-        "propertyName": "phone",
-        "operator": "CONTAINS_TOKEN",
-        "value": phone
-      });
-    }
-
-    const response = await axios.post(`${HUBSPOT_BASE_URL}/crm/v3/objects/contacts/search`, requestBody, {
-      headers: {
-        'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
-        'Content-Type': 'application/json',
+    if(email || phone){
+      //search for the id of the contcts if it exist in the cache first then do the query in hs
+      let res = await getContactIDFromCache(email,phone,contactsCache);
+      if(res){
+        console.log(`Contact ID found in Cache with value ${res?.id}`);
+        return res.id;
+      }else{
+        let requestBody = {
+          "filters": [],
+          "sorts": [{
+            "propertyName": "createdate",
+            "direction": "DESCENDING"
+          }],
+          "properties": [
+            "id",
+            "phone",
+            "email",
+            "firstname",
+            "lastname",
+            "createdate",
+            "hs_lead_status",
+          ],
+          "limit": 1,
+        };
+        if(email){
+          requestBody.filters.push({
+            "propertyName": "email",
+            "operator": "CONTAINS_TOKEN",
+            "value": email
+          });
+        }else if(phone){
+          requestBody.filters.push({
+            "propertyName": "phone",
+            "operator": "CONTAINS_TOKEN",
+            "value": phone
+          });
+        }
+  
+        const response = await axios.post(`${HUBSPOT_BASE_URL}/crm/v3/objects/contacts/search`, requestBody, {
+          headers: {
+            'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+            'Content-Type': 'application/json',
+          }
+        });
+  
+        if(response.data.total > 0){  
+          console.log(`Contact ID found in Search Query with value ${response.data.results[0].id}`);
+          return response.data.results[0].id;  
+        }else{
+          console.log("\nThere are no associated contact data, create a new contact.");
+          try {
+            const newContactID = await createNewContact(contact);  //create a new hubspot contact and returns the id
+            return newContactID;
+          } catch (error) {
+            console.log(`Error checking or creating contact: ${error}`);
+            return 0;
+          }
+        }
       }
-    });
-    
-    if(response.data.total > 0){  
-      console.log(`${response.data.results[0].id}`);
-      return response.data.results[0].id;  
     }else{
-      console.log("\nThere are no associated contact data, create a new contact.");
-      try {
-        const newContactID = await createNewContact(contact);  //create a new hubspot contact and returns the id
-        return newContactID;
-      } catch (error) {
-        console.log(`An error occured while creating a contact: ${error}`);
-        return 0;
-      }
+      console.log("There's no contact with the given email or phone number");
     }
 
   } catch (error) {
@@ -684,8 +800,8 @@ async function retrieveDate(){
   const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
   const endOfDayGMT = formatDateToGMT8(endOfDay);
 
-  // console.log('Start of Day (GMT+8):', startOfDayGMT);
-  // console.log('End of Day (GMT+8):', endOfDayGMT);
+  console.log('Start of Day (GMT+8):', startOfDayGMT);
+  console.log('End of Day (GMT+8):', endOfDayGMT);
 
   return [startOfDayGMT, endOfDayGMT];
 }
@@ -696,5 +812,8 @@ module.exports  = {
   importToHubspot,
   normalizedPhoneNumber,
   retrieveDate,
-  getAllContactsToCache
+  getAllContactsToCache,
+  getAllDealsToCache,
+  getContactIDFromCache,
+  getDealIDFromCache,
 }

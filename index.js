@@ -1,6 +1,6 @@
 require('dotenv').config();
 
-const {createNewRecords,parseCsvBuffer,importToHubspot,normalizedPhoneNumber, retrieveDate, getAllContactsToCache} = require('./util')
+const {createNewRecords,parseCsvBuffer,importToHubspot,normalizedPhoneNumber, retrieveDate, getAllContactsToCache, getAllDealsToCache, getContactIDFromCache, getDealIDFromCache} = require('./util')
 const {uploadInvalidContacts} = require('./google_api');
 const axios = require('axios');
 const express = require('express');
@@ -52,7 +52,14 @@ app.use(cors());
 
 app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
   try {
-    const contactBuffer = req.files[0].buffer;
+    // const dealsCache = await getAllDealsToCache();
+    // const deal = await getDealIDFromCache('','', dealsCache);
+    // console.log( `This is the deal id: ${deal?.id}`);
+    // const contactsCache = await getAllContactsToCache();
+    // const contact = await getContactIDFromCache('ira.s@fwrs.us', '7607248131', contactsCache);
+    // console.log( `This is the contact id: ${contact.id}`);
+    
+    const contactBuffer = req.files[0].buffer; // with project ID
     const companyBuffer = req.files[1].buffer;
     const contactBuffer2 = req.files[2].buffer;
     const projectBuffer = req.files[3].buffer;
@@ -66,10 +73,10 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
     await delay(12000);
 
     const contactsCache = await getAllContactsToCache();
-    // const dealsCache = await getAllDealsToCache();
+    const dealsCache = await getAllDealsToCache();
     
     if(importResponse !== 0){
-      const response = await createNewRecords(Contact, Company, contactsCache, broadcastProgress);
+      const response = await createNewRecords(Contact, Company, contactsCache, dealsCache, broadcastProgress);
       res.status(200).send(response);
     }else{
       res.status(400).send({ message: 'Import failed, no records were created.' });
@@ -98,7 +105,6 @@ app.post('/webhook', async (req, res) => {
 
   res.status(200).send("Successfully Formatted Phone Number");
 })
-
 
 app.post('/upload-to-drive', upload.single('file'),async (req, res) => {
   const { file } = req;
