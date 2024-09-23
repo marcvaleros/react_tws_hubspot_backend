@@ -10,7 +10,7 @@ async function createNewRecords(contactData, companyData, contactsCache, dealsCa
     let successCount = 0;
     let failureCount = 0;
     const totalRecords = contactData.length;
-    console.log(`This is the total records: ${totalRecords}`);
+    console.log(`This is the total contact records: ${totalRecords}`);
     
     // Function to update progress
     const updateProgress = (currentIndex) => {
@@ -91,8 +91,6 @@ async function getAllContactsToCache(){
         ],
         "limit": 100,
       };
-
-      console.log(`This is after: ${after}`);
       
       if(after){
         requestBody.after = after;
@@ -154,7 +152,6 @@ async function getAllDealsToCache(){
         ],
         "limit": 100,
         };
-        console.log(`This is after: ${after}`);
 
         if(after){
           requestBody.after = after;
