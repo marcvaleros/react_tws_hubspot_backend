@@ -7,11 +7,14 @@ const cors = require('cors');
 const multer = require('multer');
 const {Readable} = require('stream');
 const WebSocket = require('ws');
+const http = require('http');
+const {keepDynoAlive} = require('./self_ping');
 
 const app = express();
 const port = process.env.PORT || 8080;
 
-const wss = new WebSocket.Server({ port: process.env.WEBSOCKET_PORT || 8081 }); // WebSocket server
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server }); // WebSocket server
 
 wss.on('connection', (ws) => {
   console.log('Client Connected');
@@ -124,7 +127,12 @@ app.post('/upload-to-drive', upload.single('file'),async (req, res) => {
   }
 });
 
-app.listen(port, () => {
+
+
+// Call the keepDynoAlive function every 25 minutes to avoid the dyno sleeping
+setInterval(keepDynoAlive, 25 * 60 * 1000);  // Ping every 25 minutes (in milliseconds)
+
+server.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 })
 
