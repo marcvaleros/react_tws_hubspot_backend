@@ -31,20 +31,22 @@ const TWSFranchisee = sequelize.define('TWSFranchisee', {
 }, {
   tableName: 'tws_franchisee',
   timestamps: true,
+  charset: 'utf8mb4',
+  collate: 'utf8mb4_0900_ai_ci'
 });
 
 //setup associations here
 
 TWSFranchisee.hasMany(User, {
   foreignKey: 'assoc_tws',
-  as: 'users',
-})
+  as: 'user',
+});
 
 TWSFranchisee.hasOne(Setting, {
   foreignKey: '',
-  as: 'setting_fk',
+  as: 'setting',
   onDelete: 'CASCADE'
-})
+});
 
 
 module.exports = TWSFranchisee;

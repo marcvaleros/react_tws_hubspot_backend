@@ -55,6 +55,6 @@ const User = sequelize.define('User', {
 });
 
 //setup associations here
-User.belongsTo(TWSFranchisee, { foreignKey: 'assoc_tws' });
+User.belongsTo(TWSFranchisee, { foreignKey: 'assoc_tws', as: 'user' });
 
 module.exports = User;

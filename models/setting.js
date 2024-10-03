@@ -1,5 +1,6 @@
 const {DataTypes} = require('sequelize');
 const sequelize = require('../config/db');
+const TWSFranchisee = require('./tws_franchisee');
 
 const Setting = sequelize.define('Setting', {
   id: {
@@ -7,6 +8,14 @@ const Setting = sequelize.define('Setting', {
     primaryKey: true,
     allowNull: false,
     autoIncrement: true
+  },
+  tws_franchisee: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: TWSFranchisee,
+      key: 'id'
+    }
   },
   zips: {
     type: DataTypes.STRING(1024),
@@ -23,8 +32,10 @@ const Setting = sequelize.define('Setting', {
 }, {
   tableName: 'settings',
   timestamps: false,
+  charset: 'utf8mb4',
+  collate: 'utf8mb4_0900_ai_ci'
 });
 
-
+Setting.belongsTo(TWSFranchisee, {foreignKey: 'tws_franchisee', as: 'setting'});
 
 module.exports = Setting;

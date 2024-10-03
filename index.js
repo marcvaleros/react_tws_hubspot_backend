@@ -10,6 +10,7 @@ const WebSocket = require('ws');
 const http = require('http');
 const {keepDynoAlive} = require('./self_ping');
 const db = require('./config/db');
+const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -50,6 +51,7 @@ app.get('/', (req, res) => {
 
 // Middleware to parse JSON request body
 app.use(express.json());
+app.use('/api/auth', authRoutes);
 app.use(express.urlencoded({ extended: true }));
 
 // app.use(cors());
@@ -136,7 +138,6 @@ app.post('/upload-to-drive', upload.single('file'),async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 });
-
 
 
 // Call the keepDynoAlive function every 25 minutes to avoid the dyno sleeping
