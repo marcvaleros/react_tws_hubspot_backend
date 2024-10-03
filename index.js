@@ -1,6 +1,6 @@
 require('dotenv').config();
 
-const {createNewRecords,parseCsvBuffer,importToHubspot,normalizedPhoneNumber, getAllContactsToCache, getAllDealsToCache} = require('./util')
+const {createNewRecords,parseCsvBuffer,importToHubspot,normalizedPhoneNumber, getAllContactsToCache, getAllDealsToCache} = require('./utils/util')
 const {uploadInvalidContacts} = require('./google_api');
 const express = require('express');
 const cors = require('cors');
@@ -9,12 +9,14 @@ const {Readable} = require('stream');
 const WebSocket = require('ws');
 const http = require('http');
 const {keepDynoAlive} = require('./self_ping');
+const db = require('./config/db');
 
 const app = express();
 const port = process.env.PORT || 8080;
 
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server }); // WebSocket server
+
 
 wss.on('connection', (ws) => {
   console.log('Client Connected');
@@ -50,8 +52,10 @@ app.get('/', (req, res) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// app.use(cors());
 app.use(cors({
-  origin: 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com', // Your frontend URL
+  // origin: 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com', // Your frontend URL
+  origin: 'http://localhost:3000', // Your frontend URL
   methods: ['GET', 'POST', 'OPTIONS'], // Allow specific HTTP methods
   credentials: true, // Allow credentials (if needed)
 }));
@@ -138,7 +142,10 @@ app.post('/upload-to-drive', upload.single('file'),async (req, res) => {
 // Call the keepDynoAlive function every 25 minutes to avoid the dyno sleeping
 setInterval(keepDynoAlive, 25 * 60 * 1000);  // Ping every 25 minutes (in milliseconds)
 
+
+module.exports = {app};
+
 server.listen(port, () => {
   console.log(`Server is running on port ${port}`);
+  console.log(`WebSocket Server is running on port ${port}`);
 })
-
