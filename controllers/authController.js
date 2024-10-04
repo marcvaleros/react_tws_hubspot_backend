@@ -112,5 +112,6 @@ const sendMagicLink = async (email, token) => {
   } catch (error) {
     throw new Error('Failed to send email');
   }
-
 }
+
+module.exports = {signup, login, verifyMagicLink};

@@ -36,6 +36,4 @@ const Setting = sequelize.define('Setting', {
   collate: 'utf8mb4_0900_ai_ci'
 });
 
-Setting.belongsTo(TWSFranchisee, {foreignKey: 'tws_franchisee', as: 'setting'});
-
 module.exports = Setting;

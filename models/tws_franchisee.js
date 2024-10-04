@@ -1,7 +1,5 @@
 const {DataTypes} = require('sequelize');
 const sequelize = require('../config/db');
-const User  = require('./user');
-const Setting  = require('./setting');
 
 const TWSFranchisee = sequelize.define('TWSFranchisee', {
   id: {
@@ -34,19 +32,5 @@ const TWSFranchisee = sequelize.define('TWSFranchisee', {
   charset: 'utf8mb4',
   collate: 'utf8mb4_0900_ai_ci'
 });
-
-//setup associations here
-
-TWSFranchisee.hasMany(User, {
-  foreignKey: 'assoc_tws',
-  as: 'user',
-});
-
-TWSFranchisee.hasOne(Setting, {
-  foreignKey: '',
-  as: 'setting',
-  onDelete: 'CASCADE'
-});
-
 
 module.exports = TWSFranchisee;
