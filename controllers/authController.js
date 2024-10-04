@@ -1,52 +1,58 @@
-const app = require('../index');
+require('dotenv').config();
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const User = require('../models/user');
 const generateToken = require('../utils/generateToken');
 
 
-const generateMagicLinkData = () => {
+const generateMagicLinkData = async () => {
   const token = crypto.randomBytes(32).toString('hex');
   const expiry = new Date();
   expiry.setMinutes(expiry.getMinutes() + 30); //link valid for 30 mins
   return {token, expiry};
 }
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL, 
-    pass: process.env.PASSWORD, 
-  },
-});
+const signup = async (req, res) => {
+  const { email } = req.body;
 
-const signup = async(req,res) => {
-  const {email} = req.body;
-
-  if(!email) return res.status(400).json({message: 'All fields are required'});
+  if (!email) return res.status(400).json({ message: 'All fields are required' });
 
   try {
-    const userExists = await User.findOne({where: { email }});
-    if(userExists) return res.status(400).json({message: 'User already exists'});
+    const userExists = await User.findOne({ where: { email } });
 
-    //only continues if there user does not exists in db
-    const newUser = User.create({email, role: 'agent'});
+    if (userExists) {
+      // Generate new magic link for existing user
+      const { token, expiry } = await generateMagicLinkData();
 
-    //generate magic link
-    const {token, expiry} = generateMagicLinkData();
+      userExists.magicLinkToken = token;
+      userExists.magicLinkExpires = expiry;
 
-    newUser.magicLinkToken = token;
-    newUser.magicLinkExpires = expiry;
+      await userExists.save();
 
-    await newUser.save();
+      // Send the new magic link through email
+      await sendMagicLink(email, token);
+      return res.status(200).json({ message: 'Magic link sent to your email.' });
+    } else {
+      // Only continue if the user does not exist in the database
+      const newUser = await User.create({ email, role: 'agent' });
 
-    //send the link through email 
-    await sendMagicLink(email, token);
-    res.status(201).json({message: 'User created. Magic link sent to your email.'});
+      // Generate magic link for the new user
+      const { token, expiry } = await generateMagicLinkData();
+
+      newUser.magicLinkToken = token;
+      newUser.magicLinkExpires = expiry;
+
+      await newUser.save();
+
+      // Send the magic link through email
+      await sendMagicLink(email, token);
+      return res.status(201).json({ message: 'User created. Magic link sent to your email.' });
+    }
   } catch (error) {
-    res.status(500).json({message:' Database error', error});
+    res.status(500).json({ message: 'Database error', error });
   }
-}
+};
+
 
 const login = async (req, res) => {
   const { email } = req.body;
@@ -84,10 +90,10 @@ const verifyMagicLink = async (req, res) => {
     }
 
     //generate JWT token 
-    const jwtToken = generateToken(user);
+    const jwtToken = await generateToken(user);
 
     user.magicLinkToken = null;
-    user.magicLinkToken = null;
+    user.magicLinkExpires = null;
     await user.save();
 
     res.json({token: jwtToken});
@@ -98,8 +104,18 @@ const verifyMagicLink = async (req, res) => {
 
 const sendMagicLink = async (email, token) => {
   const magicLinkUrl = `${process.env.FRONTEND_URL}/auth/login/${token}`;
+  console.log(`This is the magic link url: ${magicLinkUrl}`);
   
   //send magic link through email
+  try {
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL, 
+      pass: process.env.EMAIL_PASSWORD, 
+    },
+  });
+    
   const mailOptions = {
     from: process.env.EMAIL,
     to: email,
@@ -107,10 +123,16 @@ const sendMagicLink = async (email, token) => {
     text: `Click on the following link to log in or verify your email: ${magicLinkUrl}`
   };
 
-  try {
-    await transporter.sendMail(mailOptions);
+  await transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      return console.log(error);
+    }
+    console.log('Message sent: %s', info.messageId);
+  });
+
   } catch (error) {
-    throw new Error('Failed to send email');
+    console.log(error);
+    
   }
 }
 

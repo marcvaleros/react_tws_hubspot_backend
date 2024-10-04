@@ -3,7 +3,8 @@ const {Sequelize} = require('sequelize');
 
 const sequelize = new Sequelize('zachomatic', 'root', 'admin', {
   host: 'localhost',
-  dialect: 'mysql'
+  dialect: 'mysql',
+  // logging: false 
 });
 
 sequelize.authenticate()

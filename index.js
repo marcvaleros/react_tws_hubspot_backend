@@ -51,7 +51,6 @@ app.get('/', (req, res) => {
 
 // Middleware to parse JSON request body
 app.use(express.json());
-app.use('/api/auth', authRoutes);
 app.use(express.urlencoded({ extended: true }));
 
 // app.use(cors());
@@ -63,6 +62,8 @@ app.use(cors({
 }));
 
 app.options('*', cors());
+
+app.use('/api/auth', authRoutes);
 
 app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
   try {
