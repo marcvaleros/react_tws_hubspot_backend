@@ -5,13 +5,6 @@ const User = require('../models/user');
 const generateToken = require('../utils/generateToken');
 
 
-const generateMagicLinkData = async () => {
-  const token = crypto.randomBytes(32).toString('hex');
-  const expiry = new Date();
-  expiry.setMinutes(expiry.getMinutes() + 30); //link valid for 30 mins
-  return {token, expiry};
-}
-
 const signup = async (req, res) => {
   const { email } = req.body;
 
@@ -53,31 +46,6 @@ const signup = async (req, res) => {
   }
 };
 
-
-const login = async (req, res) => {
-  const { email } = req.body;
-
-  if (!email) return res.status(400).json({ message: 'Email is required' });
-
-  try {
-    const user = await User.findOne({ where: { email } });
-    if (!user) return res.status(400).json({ message: 'User does not exist' });
-
-    // Generate magic link token and expiry
-    const { token, expiry } = generateMagicLinkData();
-    user.magicLinkToken = token;
-    user.magicLinkExpires = expiry;
-    await user.save();
-
-    // Send the magic link via email
-    await sendMagicLink(email, token);
-
-    res.status(200).json({ message: 'Magic link sent to your email.' });
-  } catch (error) {
-    res.status(500).json({ message: 'Database error', error });
-  }
-};
-
 const verifyMagicLink = async (req, res) => {
   const {token} = req.params;
 
@@ -85,7 +53,7 @@ const verifyMagicLink = async (req, res) => {
     //find user by token
     const user = await User.findOne({where: {magicLinkToken: token}});
 
-    if(!user || user.magicLinkExpires < new Date()) {
+    if(!user || user.magicLinkExpires < Date.now()) {
       return res.status(400).json({message: 'Invalid or expired magic link'});
     }
 
@@ -136,4 +104,11 @@ const sendMagicLink = async (email, token) => {
   }
 }
 
-module.exports = {signup, login, verifyMagicLink};
+const generateMagicLinkData = async () => {
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiry = new Date();
+  expiry.setMinutes(expiry.getMinutes() + 30); //link valid for 30 mins
+  return {token, expiry};
+}
+
+module.exports = {signup, verifyMagicLink};
