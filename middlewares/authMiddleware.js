@@ -10,6 +10,7 @@ const authenticateJWT = (req,res, next) => {
       if(err) {
         return res.sendStatus(403); // Forbidden
       }
+      console.log(`User from jwt: ${JSON.stringify(user,null,2)}`);
       req.user = user;
       next();
     });

@@ -2,9 +2,7 @@ const User = require('../models/user');
 
 const getUserById = async (req, res) => {
   try {
-    const userId = req.user.sub;  // use userID from JWT
-    console.log(`User ID from JWT: ${userId}`);
-    
+    const userId = req.user.id;  // use userID from JWT
     const user = await User.findOne({where: {id: userId}});
     if(!user) {
       return res.sendStatus(404);
