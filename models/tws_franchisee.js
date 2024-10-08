@@ -12,6 +12,10 @@ const TWSFranchisee = sequelize.define('TWSFranchisee', {
     type: DataTypes.STRING(45),
     allowNull: true,
   },
+  owner: {
+    type: DataTypes.STRING(45),
+    allowNull: true,
+  },
   hubspot_api_key: {
     type: DataTypes.STRING,
     allowNull: true,

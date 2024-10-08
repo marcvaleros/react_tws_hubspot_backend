@@ -14,6 +14,10 @@ module.exports = {
         type: Sequelize.STRING(45),
         allowNull: true,
       },
+      owner: {
+        type: Sequelize.STRING(45),
+        allowNull: true,
+      },
       hubspot_api_key: {
         type: Sequelize.STRING,
         allowNull: true,
