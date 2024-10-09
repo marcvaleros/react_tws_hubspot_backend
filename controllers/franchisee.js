@@ -1,8 +1,13 @@
-const {TWSFranchisee} = require("../models");
+const {TWSFranchisee, User} = require("../models");
 
 const getAllFranchisees = async (req,res) => {
   try {
-    const franchisees = await TWSFranchisee.findAll();
+    const franchisees = await TWSFranchisee.findAll({
+      include: {
+        model: User,
+        as: 'users',
+        attributes: ['email']
+    }});
     if(!franchisees) return res.sendStatus(404);
 
     res.json(franchisees);

@@ -36,8 +36,10 @@ module.exports = (sequelize, DataTypes) => {
   });
 
   Setting.associate = (models) => {
-    Setting.belongsTo(models.TWSFranchisee, { foreignKey: 'tws_franchisee', as: 'franchisee' });
+    Setting.belongsTo(models.TWSFranchisee, { foreignKey: 'tws_franchisee', as: 'franchisee', onDelete: 'SET NULL', onUpdate:'CASCADE'});
   }
 
   return Setting;
 }
+
+

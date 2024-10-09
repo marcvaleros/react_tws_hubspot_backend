@@ -29,7 +29,7 @@ module.exports = (sequelize, DataTypes) => {
 
   TWSFranchisee.associate = function (models) {
     TWSFranchisee.hasMany(models.User, { foreignKey: 'assoc_tws', as: 'users' });
-    TWSFranchisee.hasOne(models.Setting, { foreignKey: 'tws_franchisee', as: 'settings', onDelete: 'CASCADE' });
+    TWSFranchisee.hasOne(models.Setting, { foreignKey: 'tws_franchisee', as: 'settings', onDelete: 'SET NULL' });
   }
 
   return TWSFranchisee;

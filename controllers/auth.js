@@ -1,13 +1,15 @@
 require('dotenv').config();
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
-const User = require('../models/user');
+const { User } = require('../models');
 const generateToken = require('../utils/generateToken');
 
 
 const signup = async (req, res) => {
   const { email } = req.body;
 
+  console.log(email);
+  
   if (!email) return res.status(400).json({ message: 'All fields are required' });
 
   try {
@@ -42,6 +44,8 @@ const signup = async (req, res) => {
       return res.status(201).json({ message: 'User created. Magic link sent to your email.' });
     }
   } catch (error) {
+    console.log(error);
+    
     res.status(500).json({ message: 'Database error', error });
   }
 };

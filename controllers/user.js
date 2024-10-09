@@ -3,7 +3,12 @@ const {TWSFranchisee, User} = require('../models');
 const getUserById = async (req, res) => {
   try {
     const userId = req.user.id; 
-    const user = await User.findOne({where: {id: userId}});
+    const user = await User.findOne({where: {id: userId},   
+      include: {
+        model: TWSFranchisee,
+        as: 'franchisee',
+        attributes: ['name', 'hubspot_api_key']
+    }});
     if(!user) {
       return res.sendStatus(404);
     }
