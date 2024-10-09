@@ -5,7 +5,7 @@ const FormData = require('form-data');
 
 const HUBSPOT_BASE_URL = 'https://api.hubapi.com';
 
-async function createNewRecords(contactData, companyData, contactsCache, dealsCache, broadcastProgress) {
+async function createNewRecords(contactData, companyData, contactsCache, dealsCache, broadcastProgress, hubkey) {
   try {
     let successCount = 0;
     let failureCount = 0;
@@ -19,14 +19,14 @@ async function createNewRecords(contactData, companyData, contactsCache, dealsCa
     };
     
     for (const [index,contact] of contactData.entries()) {
-      const contactID = await checkContactRecord(contact, contactsCache);
+      const contactID = await checkContactRecord(contact, contactsCache, hubkey);
       if (contactID !== 0){
-        const companyID = await checkCompanyRecord(contact, contactID);
-        const dealID = await checkDealRecord(contact, contactID, dealsCache);        //check if the deal already existed or create a new one, returns id
+        const companyID = await checkCompanyRecord(contact, contactID, hubkey);
+        const dealID = await checkDealRecord(contact, contactID, dealsCache, hubkey);        //check if the deal already existed or create a new one, returns id
         if(dealID && companyID){
           try {
-            await associateCompanyToDeal(companyID,dealID);             
-            await associateContactToDeal(contactID,dealID);   
+            await associateCompanyToDeal(companyID,dealID, hubkey);             
+            await associateContactToDeal(contactID,dealID, hubkey);   
             successCount++;          
           } catch (error) {
             console.log("Failed creating associations for contacts, company and deals.");
@@ -61,7 +61,7 @@ async function createNewRecords(contactData, companyData, contactsCache, dealsCa
 }
 
 //Function that search for recently created contacts with their ids & information
-async function getAllContactsToCache(){
+async function getAllContactsToCache(hubkey){
   let allContacts = [];
   let hasMore = true;
   let after = null;
@@ -98,7 +98,7 @@ async function getAllContactsToCache(){
     
       const response = await axios.post(`${HUBSPOT_BASE_URL}/crm/v3/objects/contacts/search`, requestBody, {
         headers: {
-          'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+          'Authorization': `Bearer ${hubkey}`,
           'Content-Type': 'application/json',
         }
       });
@@ -122,7 +122,7 @@ async function getAllContactsToCache(){
 }
 
 //Function that search for recently created/modified deals with their ids & information
-async function getAllDealsToCache(){
+async function getAllDealsToCache(hubkey){
   let allDeals = [];
   let hasMore = true;
   let after = null;
@@ -159,7 +159,7 @@ async function getAllDealsToCache(){
         
         const response = await axios.post(`${HUBSPOT_BASE_URL}/crm/v3/objects/deals/search`, requestBody, {
           headers: {
-            'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+            'Authorization': `Bearer ${hubkey}`,
             'Content-Type': 'application/json',
           }
         });
@@ -182,7 +182,7 @@ async function getAllDealsToCache(){
 }
 
 //Function to check if there are existing companies associated for the contact, if not create the company 
-async function checkCompanyRecord(contact, contactID){
+async function checkCompanyRecord(contact, contactID, hubkey){
   try {
     const domain = getDomainName(contact.Email, contact.Website);
     requestBody = {
@@ -208,7 +208,7 @@ async function checkCompanyRecord(contact, contactID){
 
     const res = await axios.post(`${HUBSPOT_BASE_URL}/crm/v3/objects/companies/search`, requestBody, {
       headers: {
-        'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+        'Authorization': `Bearer ${hubkey}`,
         'Content-Type': 'application/json',
       }
     });
@@ -219,7 +219,7 @@ async function checkCompanyRecord(contact, contactID){
     }else{
       console.log(`Did not found associated company. Creating New Company...`);
       try {
-        const companyID = await createNewCompany(contact);
+        const companyID = await createNewCompany(contact,hubkey);
         console.log(`Successfully created a new company record with ID: ${companyID}`);
         return companyID;
       } catch (error) {
@@ -233,7 +233,7 @@ async function checkCompanyRecord(contact, contactID){
 }
 
 //Function to create a new company and returns the id of newly created company
-async function createNewCompany(contact){
+async function createNewCompany(contact,hubkey){
   const {Company, Phone, Email, Website, City, State, ZIP} = contact;
   const Domain = getDomainName(Email, Website);
   const industry = contact["Project Category"].toUpperCase();
@@ -253,7 +253,7 @@ async function createNewCompany(contact){
   try {
     const createResponse = await axios.post(`${HUBSPOT_BASE_URL}/crm/v3/objects/companies`, requestBody, {
       headers: {
-        'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+        'Authorization': `Bearer ${hubkey}`,
         'Content-Type': 'application/json',
       }
     })
@@ -273,7 +273,7 @@ async function createNewCompany(contact){
 }
 
 //Function that associates the company with the deal using their ids
-async function associateCompanyToDeal(companyID, dealID){
+async function associateCompanyToDeal(companyID, dealID, hubkey){
   const fromObjectType = 'companies';
   const fromObjectId = companyID;
   const toObjectType = 'deals';
@@ -282,7 +282,7 @@ async function associateCompanyToDeal(companyID, dealID){
   try {
     const res = await axios.put(`${HUBSPOT_BASE_URL}/crm/v4/objects/${fromObjectType}/${fromObjectId}/associations/default/${toObjectType}/${toObjectId}`,{}, {
       headers: {
-        'Authorization' : `Bearer ${process.env.HUBSPOT_API_KEY}`,
+        'Authorization' : `Bearer ${hubkey}`,
         'Content-Type': 'application/json'
       }
     });
@@ -296,7 +296,7 @@ async function associateCompanyToDeal(companyID, dealID){
 }
 
 //Function that associates the contact with the deal using their ids
-async function associateContactToDeal(contactID, dealID){
+async function associateContactToDeal(contactID, dealID, hubkey){
   const fromObjectType = 'contact';
   const fromObjectId = contactID;
   const toObjectType = 'deals';
@@ -305,7 +305,7 @@ async function associateContactToDeal(contactID, dealID){
   try {
     const res = await axios.put(`${HUBSPOT_BASE_URL}/crm/v4/objects/${fromObjectType}/${fromObjectId}/associations/default/${toObjectType}/${toObjectId}`,{}, {
       headers: {
-        'Authorization' : `Bearer ${process.env.HUBSPOT_API_KEY}`,
+        'Authorization' : `Bearer ${hubkey}`,
         'Content-Type': 'application/json'
       }
     });
@@ -333,7 +333,7 @@ async function getDealIDFromCache(projectID, dealName, dealsCache){
 }
 
 // Function to check if the deal already exists, and create a new deal if not
-async function checkDealRecord(contact, contactID, dealsCache) {
+async function checkDealRecord(contact, contactID, dealsCache,hubkey) {
   try {
     const dealName = `${contact["Project Title"]}_${contact["Project ID"]}`;
     console.log("THIS IS THE DEAL NAME: ", dealName);
@@ -375,7 +375,7 @@ async function checkDealRecord(contact, contactID, dealsCache) {
     
         const response = await axios.post(`${HUBSPOT_BASE_URL}/crm/v3/objects/deals/search`, requestBody, {
           headers: {
-            'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+            'Authorization': `Bearer ${hubkey}`,
             'Content-Type': 'application/json'
           }
         });
@@ -387,7 +387,7 @@ async function checkDealRecord(contact, contactID, dealsCache) {
           console.log("\nThere are no associated deal data, create a new deal.");
           
           try {
-            const newDealID = await createNewDeal(contact, contactID);
+            const newDealID = await createNewDeal(contact, contactID, hubkey);
             return newDealID;
           } catch (error) {
             console.log(`Error checking or creating deal: ${error}`);
@@ -404,7 +404,7 @@ async function checkDealRecord(contact, contactID, dealsCache) {
 }
 
 // Function to create a new deal
-async function createNewDeal(contact, contactID) {
+async function createNewDeal(contact, contactID, hubkey) {
   try {
     const dealName = `${contact["Project Title"]}_${contact["Project ID"]}`; 
     const descriptions =  `Project Title: ${contact["Project Title"]}\nProject Types: ${contact["Project Types"]}\nBuilding Uses: ${contact["Building Uses"]}\nProject Category: ${contact["Project Category"]}\nProject Description: ${contact["Project Description"]}\n
@@ -422,7 +422,7 @@ async function createNewDeal(contact, contactID) {
     // Make the API request to create the new deal
     const response = await axios.post(`${HUBSPOT_BASE_URL}/crm/v3/objects/deals`, requestBody, {
       headers: {
-        'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+        'Authorization': `Bearer ${hubkey}`,
         'Content-Type': 'application/json'
       }
     });
@@ -452,7 +452,7 @@ async function getContactIDFromCache (email, phone, contactsCache){
 }
 
 //Function that returns the id of the existing or newly created contact 
-async function checkContactRecord(contact, contactsCache){
+async function checkContactRecord(contact, contactsCache, hubkey){
   try {
     let email = contact.Email;
     let phone = contact.Phone;
@@ -499,7 +499,7 @@ async function checkContactRecord(contact, contactsCache){
   
         const response = await axios.post(`${HUBSPOT_BASE_URL}/crm/v3/objects/contacts/search`, requestBody, {
           headers: {
-            'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+            'Authorization': `Bearer ${hubkey}`,
             'Content-Type': 'application/json',
           }
         });
@@ -510,7 +510,7 @@ async function checkContactRecord(contact, contactsCache){
         }else{
           console.log("\nThere are no associated contact data, create a new contact.");
           try {
-            const newContactID = await createNewContact(contact);  //create a new hubspot contact and returns the id
+            const newContactID = await createNewContact(contact,hubkey);  //create a new hubspot contact and returns the id
             return newContactID;
           } catch (error) {
             console.log(`Error checking or creating contact: ${error}`);
@@ -529,7 +529,7 @@ async function checkContactRecord(contact, contactsCache){
 }
 
 //Function to create a new contact and return the contact id
-async function createNewContact(contact){
+async function createNewContact(contact,hubkey){
   const {Email, Phone, Name, Role, Address, City, State, ZIP } = contact;
   const requestBody = {
     "properties": {
@@ -547,7 +547,7 @@ async function createNewContact(contact){
   try {
     const createResponse = await axios.post(`${HUBSPOT_BASE_URL}/crm/v3/objects/contacts`, requestBody, {
       headers: {
-        'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+        'Authorization': `Bearer ${hubkey}`,
         'Content-Type': 'application/json',
       }
     })
@@ -566,7 +566,7 @@ async function createNewContact(contact){
   }
 }
 
-async function importToHubspot (fileName, contactBuffer, companyBuffer, projectBuffer) {
+async function importToHubspot (fileName, contactBuffer, companyBuffer, projectBuffer, hubkey) {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const baseFileName = fileName.replace('.csv', '');
   const formattedFileName = `${baseFileName}_${timestamp}`;
@@ -684,7 +684,7 @@ async function importToHubspot (fileName, contactBuffer, companyBuffer, projectB
       headers: { 
         'Content-Type': 'multipart/form-data', 
         'Accept': 'application/json',
-        'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`, 
+        'Authorization': `Bearer ${hubkey}`, 
         ...form.getHeaders()
       },
       data : form
@@ -699,14 +699,14 @@ async function importToHubspot (fileName, contactBuffer, companyBuffer, projectB
   } 
 }
 
-async function normalizedPhoneNumber(contactID){
+async function normalizedPhoneNumber(contactID, hubkey){
 
   const containsSymbols = (number) => /[-() ]/.test(number);
 
   try {
     const res = await axios.get(`${HUBSPOT_BASE_URL}/crm/v3/objects/contacts/${contactID}?properties=phone`, {
       headers: {
-        'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+        'Authorization': `Bearer ${hubkey}`,
         'Content-Type': 'application/json',
       }
     });
@@ -725,7 +725,7 @@ async function normalizedPhoneNumber(contactID){
         try {
           const patchResponse = await axios.patch(`${HUBSPOT_BASE_URL}/crm/v3/objects/contacts/${contactID}`, payload, {
             headers: {
-              'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+              'Authorization': `Bearer ${hubkey}`,
               'Content-Type': 'application/json',
             }
           });

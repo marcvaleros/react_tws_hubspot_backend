@@ -16,7 +16,7 @@ const port = process.env.PORT || 8080;
 
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server }); // WebSocket server
-
+let hubspot_api_key;
 
 wss.on('connection', (ws) => {
   console.log('Client Connected');
@@ -71,19 +71,21 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
     const contactBuffer2 = req.files[2].buffer;
     const projectBuffer = req.files[3].buffer;
     const filename = req.body.filename;
+    hubspot_api_key = req.body.hubspot_api_key;
+
     const Contact = await parseCsvBuffer(contactBuffer);
     const Company = await parseCsvBuffer(companyBuffer);
     
-    const importResponse = await importToHubspot(filename, contactBuffer2, companyBuffer, projectBuffer);
+    const importResponse = await importToHubspot(filename, contactBuffer2, companyBuffer, projectBuffer, hubspot_api_key);
     
     const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     await delay(12000);
 
-    const contactsCache = await getAllContactsToCache();
-    const dealsCache = await getAllDealsToCache();
+    const contactsCache = await getAllContactsToCache(hubspot_api_key);
+    const dealsCache = await getAllDealsToCache(hubspot_api_key);
     
     if(importResponse !== 0){
-      const response = await createNewRecords(Contact, Company, contactsCache, dealsCache, broadcastProgress);
+      const response = await createNewRecords(Contact, Company, contactsCache, dealsCache, broadcastProgress, hubspot_api_key);
       res.status(200).send(response);
     }else{
       res.status(400).send({ message: 'Import failed, no records were created.' });
@@ -103,7 +105,7 @@ app.post('/webhook', async (req, res) => {
     if(event.subscriptionType === "contact.creation"){
       console.log(event.objectId);
       try {
-        await normalizedPhoneNumber(event.objectId);
+        await normalizedPhoneNumber(event.objectId, hubspot_api_key);
       } catch (error) {
         console.log(`Failed normalizing phone number format. ${error}`);
       }
