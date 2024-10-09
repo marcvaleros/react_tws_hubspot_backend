@@ -1,4 +1,4 @@
-const TWSFranchisee = require("../models/tws_franchisee");
+const {TWSFranchisee} = require("../models");
 
 const getAllFranchisees = async (req,res) => {
   try {

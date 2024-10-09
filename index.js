@@ -9,7 +9,6 @@ const {Readable} = require('stream');
 const WebSocket = require('ws');
 const http = require('http');
 const {keepDynoAlive} = require('./self_ping');
-const db = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 
 const app = express();
