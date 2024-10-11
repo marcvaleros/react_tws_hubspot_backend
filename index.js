@@ -1,6 +1,6 @@
 require('dotenv').config();
 
-const {createNewRecords,parseCsvBuffer,importToHubspot,normalizedPhoneNumber, getAllContactsToCache, getAllDealsToCache} = require('./util')
+const {createNewRecords,parseCsvBuffer,importToHubspot,normalizedPhoneNumber, getAllContactsToCache, getAllDealsToCache} = require('./utils/util')
 const {uploadInvalidContacts} = require('./google_api');
 const express = require('express');
 const cors = require('cors');
@@ -9,12 +9,14 @@ const {Readable} = require('stream');
 const WebSocket = require('ws');
 const http = require('http');
 const {keepDynoAlive} = require('./self_ping');
+const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 const port = process.env.PORT || 8080;
 
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server }); // WebSocket server
+let hubspot_api_key;
 
 wss.on('connection', (ws) => {
   console.log('Client Connected');
@@ -50,14 +52,17 @@ app.get('/', (req, res) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// app.use(cors());
 app.use(cors({
   // origin: 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com', // Your frontend URL
   origin: 'http://localhost:3000', // Your frontend URL
-  methods: ['GET', 'POST', 'OPTIONS'], // Allow specific HTTP methods
-  credentials: true, // Allow credentials (if needed)
+  methods: ['GET', 'POST', 'OPTIONS', 'PUT'], // Allow specific HTTP methods
+  credentials: true, 
 }));
 
 app.options('*', cors());
+
+app.use('/api/auth', authRoutes);
 
 app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
   try {
@@ -66,19 +71,26 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
     const contactBuffer2 = req.files[2].buffer;
     const projectBuffer = req.files[3].buffer;
     const filename = req.body.filename;
+    const deal_stage = req.body.deal_stage;
+    hubspot_api_key = req.body.hubspot_api_key;
+
     const Contact = await parseCsvBuffer(contactBuffer);
     const Company = await parseCsvBuffer(companyBuffer);
     
-    const importResponse = await importToHubspot(filename, contactBuffer2, companyBuffer, projectBuffer);
+    const importResponse = await importToHubspot(filename, contactBuffer2, companyBuffer, projectBuffer, hubspot_api_key);
     
     const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     await delay(12000);
 
-    const contactsCache = await getAllContactsToCache();
-    const dealsCache = await getAllDealsToCache();
+    const contactsCache = await getAllContactsToCache(hubspot_api_key);
+    const dealsCache = await getAllDealsToCache(hubspot_api_key);
+    
+    console.log(JSON.stringify(contactsCache,null,2));
+    console.log(JSON.stringify(dealsCache,null,2));
+    
     
     if(importResponse !== 0){
-      const response = await createNewRecords(Contact, Company, contactsCache, dealsCache, broadcastProgress);
+      const response = await createNewRecords(Contact, Company, contactsCache, dealsCache, broadcastProgress, hubspot_api_key, deal_stage);
       res.status(200).send(response);
     }else{
       res.status(400).send({ message: 'Import failed, no records were created.' });
@@ -98,7 +110,7 @@ app.post('/webhook', async (req, res) => {
     if(event.subscriptionType === "contact.creation"){
       console.log(event.objectId);
       try {
-        await normalizedPhoneNumber(event.objectId);
+        await normalizedPhoneNumber(event.objectId, hubspot_api_key);
       } catch (error) {
         console.log(`Failed normalizing phone number format. ${error}`);
       }
@@ -135,11 +147,13 @@ app.post('/upload-to-drive', upload.single('file'),async (req, res) => {
 });
 
 
-
 // Call the keepDynoAlive function every 25 minutes to avoid the dyno sleeping
 setInterval(keepDynoAlive, 25 * 60 * 1000);  // Ping every 25 minutes (in milliseconds)
 
+
+module.exports = {app};
+
 server.listen(port, () => {
   console.log(`Server is running on port ${port}`);
+  console.log(`WebSocket Server is running on port ${port}`);
 })
-
