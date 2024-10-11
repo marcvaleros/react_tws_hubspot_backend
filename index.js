@@ -56,8 +56,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cors({
   // origin: 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com', // Your frontend URL
   origin: 'http://localhost:3000', // Your frontend URL
-  methods: ['GET', 'POST', 'OPTIONS'], // Allow specific HTTP methods
-  credentials: true, // Allow credentials (if needed)
+  methods: ['GET', 'POST', 'OPTIONS', 'PUT'], // Allow specific HTTP methods
+  credentials: true, 
 }));
 
 app.options('*', cors());
@@ -71,6 +71,7 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
     const contactBuffer2 = req.files[2].buffer;
     const projectBuffer = req.files[3].buffer;
     const filename = req.body.filename;
+    const deal_stage = req.body.deal_stage;
     hubspot_api_key = req.body.hubspot_api_key;
 
     const Contact = await parseCsvBuffer(contactBuffer);
@@ -84,8 +85,12 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
     const contactsCache = await getAllContactsToCache(hubspot_api_key);
     const dealsCache = await getAllDealsToCache(hubspot_api_key);
     
+    console.log(JSON.stringify(contactsCache,null,2));
+    console.log(JSON.stringify(dealsCache,null,2));
+    
+    
     if(importResponse !== 0){
-      const response = await createNewRecords(Contact, Company, contactsCache, dealsCache, broadcastProgress, hubspot_api_key);
+      const response = await createNewRecords(Contact, Company, contactsCache, dealsCache, broadcastProgress, hubspot_api_key, deal_stage);
       res.status(200).send(response);
     }else{
       res.status(400).send({ message: 'Import failed, no records were created.' });

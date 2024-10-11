@@ -5,7 +5,7 @@ const FormData = require('form-data');
 
 const HUBSPOT_BASE_URL = 'https://api.hubapi.com';
 
-async function createNewRecords(contactData, companyData, contactsCache, dealsCache, broadcastProgress, hubkey) {
+async function createNewRecords(contactData, companyData, contactsCache, dealsCache, broadcastProgress, hubkey, dealStage) {
   try {
     let successCount = 0;
     let failureCount = 0;
@@ -22,7 +22,7 @@ async function createNewRecords(contactData, companyData, contactsCache, dealsCa
       const contactID = await checkContactRecord(contact, contactsCache, hubkey);
       if (contactID !== 0){
         const companyID = await checkCompanyRecord(contact, contactID, hubkey);
-        const dealID = await checkDealRecord(contact, contactID, dealsCache, hubkey);        //check if the deal already existed or create a new one, returns id
+        const dealID = await checkDealRecord(contact, contactID, dealsCache, hubkey, dealStage);        //check if the deal already existed or create a new one, returns id
         if(dealID && companyID){
           try {
             await associateCompanyToDeal(companyID,dealID, hubkey);             
@@ -333,7 +333,7 @@ async function getDealIDFromCache(projectID, dealName, dealsCache){
 }
 
 // Function to check if the deal already exists, and create a new deal if not
-async function checkDealRecord(contact, contactID, dealsCache,hubkey) {
+async function checkDealRecord(contact, contactID, dealsCache,hubkey, dealStage) {
   try {
     const dealName = `${contact["Project Title"]}_${contact["Project ID"]}`;
     console.log("THIS IS THE DEAL NAME: ", dealName);
@@ -387,7 +387,7 @@ async function checkDealRecord(contact, contactID, dealsCache,hubkey) {
           console.log("\nThere are no associated deal data, create a new deal.");
           
           try {
-            const newDealID = await createNewDeal(contact, contactID, hubkey);
+            const newDealID = await createNewDeal(contact, contactID, hubkey, dealStage);
             return newDealID;
           } catch (error) {
             console.log(`Error checking or creating deal: ${error}`);
@@ -404,7 +404,7 @@ async function checkDealRecord(contact, contactID, dealsCache,hubkey) {
 }
 
 // Function to create a new deal
-async function createNewDeal(contact, contactID, hubkey) {
+async function createNewDeal(contact, contactID, hubkey, dealStage) {
   try {
     const dealName = `${contact["Project Title"]}_${contact["Project ID"]}`; 
     const descriptions =  `Project Title: ${contact["Project Title"]}\nProject Types: ${contact["Project Types"]}\nBuilding Uses: ${contact["Building Uses"]}\nProject Category: ${contact["Project Category"]}\nProject Description: ${contact["Project Description"]}\n
@@ -414,7 +414,7 @@ async function createNewDeal(contact, contactID, hubkey) {
       "properties": {
         "dealname": dealName,
         "pipeline": "default",
-        "dealstage": "239936678",            // Default stage, adjust as needed
+        "dealstage": dealStage,            // Default stage, adjust as needed
         "description": descriptions,
       }
     };

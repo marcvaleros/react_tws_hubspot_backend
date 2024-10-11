@@ -12,7 +12,7 @@ const getAllFranchisees = async (req,res) => {
         {
           model: Setting,
           as: 'settings',
-          attributes: ['zips','projectTypes','buildingUses']
+          attributes: ['zips','projectTypes','buildingUses', 'dealStageId']
         }
     ],
   });

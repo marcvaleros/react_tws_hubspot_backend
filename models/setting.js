@@ -16,6 +16,10 @@ module.exports = (sequelize, DataTypes) => {
         key: 'id'
       }
     },
+    dealStageId: {
+      type: DataTypes.STRING(45),
+      allowNull: true,
+    },
     zips: {
       type: DataTypes.STRING(1024),
       allowNull: true,

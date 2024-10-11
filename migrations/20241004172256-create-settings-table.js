@@ -20,6 +20,10 @@ module.exports = {
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL'
       },
+      dealStageId: {
+        type: Sequelize.STRING(45),
+        allowNull: true
+      },
       zips: {
         type: Sequelize.STRING(1024),
         allowNull: true
