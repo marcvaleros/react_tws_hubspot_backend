@@ -54,9 +54,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // app.use(cors());
 app.use(cors({
-  // origin: 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com', // Your frontend URL
-  origin: 'http://localhost:3000', // Your frontend URL
-  methods: ['GET', 'POST', 'OPTIONS', 'PUT'], // Allow specific HTTP methods
+  origin: `${process.env.FRONTEND_URL}`,  
+  methods: ['GET', 'POST', 'OPTIONS', 'PUT'], 
   credentials: true, 
 }));
 
