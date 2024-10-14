@@ -95,6 +95,19 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
     console.log('Fetching deals cache');
     const dealsCache = await getAllDealsToCache(hubspot_api_key);
 
+    // const Contact = await parseCsvBuffer(contactBuffer);
+    // const Company = await parseCsvBuffer(companyBuffer);
+    
+    // const importResponse = await importToHubspot(filename, contactBuffer2, companyBuffer, projectBuffer, hubspot_api_key);
+    
+    // const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+    // await delay(12000);
+
+    // const contactsCache = await getAllContactsToCache(hubspot_api_key);
+    // const dealsCache = await getAllDealsToCache(hubspot_api_key);
+    
+    // console.log(JSON.stringify(contactsCache,null,2));
+    // console.log(JSON.stringify(dealsCache,null,2));
     
     if(importResponse !== 0){
       const response = await createNewRecords(Contact, Company, contactsCache, dealsCache, broadcastProgress, hubspot_api_key, deal_stage);
