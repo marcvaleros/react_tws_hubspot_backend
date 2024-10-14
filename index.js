@@ -76,16 +76,35 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
     const deal_stage = req.body.deal_stage;
     hubspot_api_key = req.body.hubspot_api_key;
 
+    console.log('Parsing contact CSV');
     const Contact = await parseCsvBuffer(contactBuffer);
+    
+    console.log('Parsing company CSV');
     const Company = await parseCsvBuffer(companyBuffer);
     
+    console.log('Importing to HubSpot');
     const importResponse = await importToHubspot(filename, contactBuffer2, companyBuffer, projectBuffer, hubspot_api_key);
     
+    console.log('Waiting for operations to complete');
     const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     await delay(12000);
-
+  
+    console.log('Fetching contacts cache');
     const contactsCache = await getAllContactsToCache(hubspot_api_key);
+    
+    console.log('Fetching deals cache');
     const dealsCache = await getAllDealsToCache(hubspot_api_key);
+
+    // const Contact = await parseCsvBuffer(contactBuffer);
+    // const Company = await parseCsvBuffer(companyBuffer);
+    
+    // const importResponse = await importToHubspot(filename, contactBuffer2, companyBuffer, projectBuffer, hubspot_api_key);
+    
+    // const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+    // await delay(12000);
+
+    // const contactsCache = await getAllContactsToCache(hubspot_api_key);
+    // const dealsCache = await getAllDealsToCache(hubspot_api_key);
     
     console.log(JSON.stringify(contactsCache,null,2));
     console.log(JSON.stringify(dealsCache,null,2));
