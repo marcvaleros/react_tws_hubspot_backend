@@ -10,6 +10,8 @@ const WebSocket = require('ws');
 const http = require('http');
 const {keepDynoAlive} = require('./self_ping');
 const authRoutes = require('./routes/authRoutes');
+const morgan = require('morgan');
+
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -51,6 +53,7 @@ app.get('/', (req, res) => {
 // Middleware to parse JSON request body
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(morgan('dev'));
 
 // app.use(cors());
 app.use(cors({
