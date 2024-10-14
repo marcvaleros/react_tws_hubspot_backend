@@ -56,10 +56,10 @@ app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com',
+  origin: 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com' || process.env.FRONTEND_URL,
   methods: ['GET', 'POST', 'OPTIONS', 'PUT'], 
-  credentials: true, 
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  // credentials: true, 
+  // allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 app.options('*', cors());
