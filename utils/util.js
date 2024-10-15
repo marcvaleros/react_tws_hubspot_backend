@@ -566,6 +566,70 @@ async function createNewContact(contact,hubkey){
   }
 }
 
+async function importCompanyWatchListToHubspot(fileName, contactBuffer, hubkey){
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const baseFileName = fileName.replace('.csv', '');
+  const formattedFileName = `${baseFileName}_${timestamp}`;
+
+  let importRequest = {
+    "name": formattedFileName,
+    "importOperations": {
+      "0-1" : "UPSERT",
+    },
+    "files": [
+      {
+        "fileName": `Contruct Connect Company.csv`,
+        "fileFormat": "CSV",
+        "fileImportPage": {
+          "hasHeader": true, 
+          "columnMappings" : [
+            {
+              "columnObjectTypeId": "0-1",
+              "columnName": "Contact Name",
+              "propertyName": "firstname"
+            },
+            {
+              "columnObjectTypeId": "0-1",
+              "columnName": "Contact Email",
+              "propertyName": "email"
+            },
+            {
+              "columnObjectTypeId": "0-1",
+              "columnName": "Phone",
+              "propertyName": "phone"
+            },
+            {
+              "columnObjectTypeId": "0-1",
+              "columnName": "Website",
+              "propertyName": "website"
+            },
+            {
+              "columnObjectTypeId": "0-1",
+              "columnName": "Address",
+              "propertyName": "address"
+            },
+            {
+              "columnObjectTypeId": "0-1",
+              "columnName": "City",
+              "propertyName": "city"
+            },
+            {
+              "columnObjectTypeId": "0-1",
+              "columnName": "State",
+              "propertyName": "state"
+            },
+            {
+              "columnObjectTypeId": "0-1",
+              "columnName": "Zip",
+              "propertyName": "zip"
+            },
+          ]
+        }
+      }
+    ]
+  }
+}
+
 async function importToHubspot (fileName, contactBuffer, companyBuffer, projectBuffer, hubkey) {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const baseFileName = fileName.replace('.csv', '');
