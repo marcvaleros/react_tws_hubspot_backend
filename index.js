@@ -58,6 +58,8 @@ app.use(morgan('dev'));
 app.use(cors({
   origin: 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com',
   methods: ['GET', 'POST', 'OPTIONS', 'PUT'], 
+  // credentials: true, 
+  // allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 app.use('/api/auth', authRoutes);
@@ -120,22 +122,22 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
 })
 
 
-app.post('/webhook', async (req, res) => {
-  console.log(req.body);
+// app.post('/webhook', async (req, res) => {
+//   console.log(req.body);
 
-  for (const event of req.body){
-    if(event.subscriptionType === "contact.creation"){
-      console.log(event.objectId);
-      try {
-        await normalizedPhoneNumber(event.objectId, hubspot_api_key);
-      } catch (error) {
-        console.log(`Failed normalizing phone number format. ${error}`);
-      }
-    }
-  }
+//   for (const event of req.body){
+//     if(event.subscriptionType === "contact.creation"){
+//       console.log(event.objectId);
+//       try {
+//         await normalizedPhoneNumber(event.objectId, hubspot_api_key);
+//       } catch (error) {
+//         console.log(`Failed normalizing phone number format. ${error}`);
+//       }
+//     }
+//   }
 
-  res.status(200).send("Successfully Formatted Phone Number");
-})
+//   res.status(200).send("Successfully Formatted Phone Number");
+// })
 
 app.post('/upload-to-drive', upload.single('file'),async (req, res) => {
   const { file } = req;
