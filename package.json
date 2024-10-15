@@ -9,6 +9,10 @@
     "migrate:reset": "npx sequelize-cli db:migrate:undo && npx sequelize-cli db:migrate",
     "seed:reset": "sequelize-cli db:seed:undo:all && sequelize-cli db:seed:all"
   },
+  "engines": {
+    "node": "20.5.1",
+    "npm": "9.8.0"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",

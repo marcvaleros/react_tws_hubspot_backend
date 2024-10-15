@@ -16,13 +16,6 @@ const morgan = require('morgan');
 const app = express();
 const port = process.env.PORT || 8080;
 
-app.use(cors({
-  origin: 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com',
-  methods: ['GET', 'POST', 'OPTIONS', 'PUT'], 
-  // credentials: true, 
-  // allowedHeaders: ['Content-Type', 'Authorization'],
-}));
-
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server }); // WebSocket server
 let hubspot_api_key;
@@ -64,6 +57,12 @@ app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
 
+app.use(cors({
+  origin: 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com',
+  methods: ['GET', 'POST', 'OPTIONS', 'PUT'], 
+  // credentials: true, 
+  // allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 
 app.use('/api/auth', authRoutes);
 
@@ -102,7 +101,7 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
     
     if(importResponse !== 0){
       const response = await createNewRecords(Contact, Company, contactsCache, dealsCache, broadcastProgress, hubspot_api_key, deal_stage);
-      res.status(200).send(response);
+      res.status(200).send({message: response});
     }else{
       res.status(400).send({ message: 'Import failed, no records were created.' });
     }
