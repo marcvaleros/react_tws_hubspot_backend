@@ -16,6 +16,13 @@ const morgan = require('morgan');
 const app = express();
 const port = process.env.PORT || 8080;
 
+app.use(cors({
+  origin: 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com',
+  methods: ['GET', 'POST', 'OPTIONS', 'PUT'], 
+  // credentials: true, 
+  // allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server }); // WebSocket server
 let hubspot_api_key;
@@ -50,17 +57,13 @@ app.get('/', (req, res) => {
   res.send('Your server is running.');
 });
 
+
 // Middleware to parse JSON request body
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
-app.use(cors({
-  origin: 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com',
-  methods: ['GET', 'POST', 'OPTIONS', 'PUT'], 
-  // credentials: true, 
-  // allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+
 
 app.use('/api/auth', authRoutes);
 
@@ -92,17 +95,6 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
     
     console.log('Fetching deals cache');
     const dealsCache = await getAllDealsToCache(hubspot_api_key);
-
-    // const Contact = await parseCsvBuffer(contactBuffer);
-    // const Company = await parseCsvBuffer(companyBuffer);
-    
-    // const importResponse = await importToHubspot(filename, contactBuffer2, companyBuffer, projectBuffer, hubspot_api_key);
-    
-    // const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-    // await delay(12000);
-
-    // const contactsCache = await getAllContactsToCache(hubspot_api_key);
-    // const dealsCache = await getAllDealsToCache(hubspot_api_key);
     
     console.log(JSON.stringify(contactsCache,null,2));
     console.log(JSON.stringify(dealsCache,null,2));
