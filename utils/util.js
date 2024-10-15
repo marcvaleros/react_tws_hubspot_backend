@@ -578,7 +578,7 @@ async function importCompanyWatchListToHubspot(fileName, contactBuffer, hubkey){
     },
     "files": [
       {
-        "fileName": `Contruct Connect Company.csv`,
+        "fileName": `Construct Connect Company Contacts.csv`,
         "fileFormat": "CSV",
         "fileImportPage": {
           "hasHeader": true, 
@@ -628,9 +628,36 @@ async function importCompanyWatchListToHubspot(fileName, contactBuffer, hubkey){
       }
     ]
   }
+
+  let form = new FormData();
+
+  form.append('files', contactBuffer, 'Construct Connect Company Contacts.csv');
+  form.append('importRequest', JSON.stringify(importRequest));
+
+  try {
+    let config = {
+      method: 'post',
+      maxBodyLength: Infinity,
+      url: 'https://api.hubapi.com/crm/v3/imports',
+      headers: { 
+        'Content-Type': 'multipart/form-data', 
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${hubkey}`, 
+        ...form.getHeaders()
+      },
+      data : form
+    };
+    
+    const response = await axios.request(config);
+    console.log(JSON.stringify(response.data,null,1)); // import response
+    return 1;
+  } catch (error) {
+    console.log("Error Importing Company Contacts to Hubspot", error.response ? error.response.data : error.message);
+    return 0;
+  } 
 }
 
-async function importToHubspot (fileName, contactBuffer, companyBuffer, projectBuffer, hubkey) {
+async function importToHubspot (fileName, contactBuffer, projectBuffer, hubkey) {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const baseFileName = fileName.replace('.csv', '');
   const formattedFileName = `${baseFileName}_${timestamp}`;
@@ -758,7 +785,7 @@ async function importToHubspot (fileName, contactBuffer, companyBuffer, projectB
     // console.log(JSON.stringify(response.data,null,1)); // import response
     return 1;
   } catch (error) {
-    console.log("Error Importing to Hubspot", error.response ? error.response.data : error.message);
+    console.log("Error Importing Project Contacts to Hubspot", error.response ? error.response.data : error.message);
     return 0;
   } 
 }
@@ -880,4 +907,5 @@ module.exports  = {
   getAllDealsToCache,
   getContactIDFromCache,
   getDealIDFromCache,
+  importCompanyWatchListToHubspot
 }

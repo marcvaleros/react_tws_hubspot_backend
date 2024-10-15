@@ -1,6 +1,6 @@
 require('dotenv').config();
 
-const {createNewRecords,parseCsvBuffer,importToHubspot,normalizedPhoneNumber, getAllContactsToCache, getAllDealsToCache} = require('./utils/util')
+const {createNewRecords,parseCsvBuffer,importToHubspot,normalizedPhoneNumber, getAllContactsToCache, getAllDealsToCache, importCompanyWatchListToHubspot} = require('./utils/util')
 const {uploadInvalidContacts} = require('./google_api');
 const express = require('express');
 const cors = require('cors');
@@ -62,6 +62,26 @@ app.options('*', cors());
 
 app.use('/api/auth', authRoutes);
 
+app.post('/upload/companies', upload.array('files', 4), async (req,res) => {
+  try {
+    contactBuffer = req.files[0].buffer;
+    const filename = req.body.filename;
+    hubspot_api_key = req.body.hubspot_api_key;
+
+    const importResponse = await importCompanyWatchListToHubspot(filename, contactBuffer, hubspot_api_key);
+
+    if(importResponse !== 0){
+      res.status(200).send({message: 'Successfully Imported Records'});
+    }else{
+      res.status(400).send({ message: 'Import failed, no records were created.' });
+    }
+
+  } catch (error) {
+    console.error(error.response ? error.response.data : error.message);
+    res.status(error.response ? error.response.status : 500).send(error.response ? error.response.data : 'Server Error');
+  }
+})
+
 app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
   try {
     const contactBuffer = req.files[0].buffer;
@@ -75,7 +95,7 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
     const Contact = await parseCsvBuffer(contactBuffer);
     const Company = await parseCsvBuffer(companyBuffer);
     
-    const importResponse = await importToHubspot(filename, contactBuffer2, companyBuffer, projectBuffer, hubspot_api_key);
+    const importResponse = await importToHubspot(filename, contactBuffer2, projectBuffer, hubspot_api_key);
     
     const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     await delay(12000);
@@ -89,7 +109,7 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
     
     if(importResponse !== 0){
       const response = await createNewRecords(Contact, Company, contactsCache, dealsCache, broadcastProgress, hubspot_api_key, deal_stage);
-      res.status(200).send(response);
+      res.status(200).send({ message: response });
     }else{
       res.status(400).send({ message: 'Import failed, no records were created.' });
     }
