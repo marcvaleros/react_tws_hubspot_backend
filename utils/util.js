@@ -390,7 +390,7 @@ async function checkDealRecord(contact, contactID, dealsCache,hubkey, dealStage)
             const newDealID = await createNewDeal(contact, contactID, hubkey, dealStage);
             return newDealID;
           } catch (error) {
-            console.log(`Error checking or creating deal: ${error}`);
+            console.log(`Error checking or creating deal: ${JSON.stringify(error,null,2)}`);
             return 0;
           }
         }
@@ -399,7 +399,7 @@ async function checkDealRecord(contact, contactID, dealsCache,hubkey, dealStage)
       console.log("There's no deal with the given project id or dealname");
     }
   } catch (error) {
-    console.error(`Error checking or creating deal: ${error}`);
+    console.error(`Error checking or creating deal: ${JSON.stringify(error,null,2)}`);
   }
 }
 
@@ -523,7 +523,7 @@ async function checkContactRecord(contact, contactsCache, hubkey){
     }
 
   } catch (error) {
-      console.log(`Failed to fetch contact information. Contact does not exist yet. Error: ${error}`);
+      console.log(`Failed to fetch contact information. Contact does not exist yet. Error: ${JSON.stringify(error.response,null,2)}`);
       return 0;
   }
 }
