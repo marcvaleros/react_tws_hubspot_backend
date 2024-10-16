@@ -58,7 +58,7 @@ app.use(morgan('dev'));
 
 
 app.use(cors({
-  origin: 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com/',
+  origin: 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com',
   methods: ['GET', 'POST', 'OPTIONS', 'PUT'], 
   allowedHeaders: ['Content-Type', 'Authorization'],
   // credentials: true, 
