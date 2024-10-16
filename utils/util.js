@@ -2,8 +2,19 @@ require('dotenv').config();
 const axios = require('axios');
 const Papa = require('papaparse');
 const FormData = require('form-data');
+const Bottleneck = require('bottleneck');
 
 const HUBSPOT_BASE_URL = 'https://api.hubapi.com';
+
+const limiter = new Bottleneck({
+  minTime: 500,     // Wait 500ms between each request
+  maxConcurrent: 1  // Limit to 1 concurrent request
+});
+
+//  Function to make throttled API calls to HubSpot
+const hubSpotApiCall = limiter.wrap(async (apiFunction, ...args) => {
+  return await apiFunction(...args);
+});
 
 async function createNewRecords(contactData, companyData, contactsCache, dealsCache, broadcastProgress, hubkey, dealStage) {
   try {
@@ -19,14 +30,14 @@ async function createNewRecords(contactData, companyData, contactsCache, dealsCa
     };
     
     for (const [index,contact] of contactData.entries()) {
-      const contactID = await checkContactRecord(contact, contactsCache, hubkey);
+      const contactID = await hubSpotApiCall(checkContactRecord,contact, contactsCache, hubkey);
       if (contactID !== 0){
-        const companyID = await checkCompanyRecord(contact, contactID, hubkey);
-        const dealID = await checkDealRecord(contact, contactID, dealsCache, hubkey, dealStage);        //check if the deal already existed or create a new one, returns id
+        const companyID = await hubSpotApiCall(checkCompanyRecord,contact, contactID, hubkey);
+        const dealID = await hubSpotApiCall(checkDealRecord,contact, contactID, dealsCache, hubkey, dealStage);        //check if the deal already existed or create a new one, returns id
         if(dealID && companyID){
           try {
-            await associateCompanyToDeal(companyID,dealID, hubkey);             
-            await associateContactToDeal(contactID,dealID, hubkey);   
+            await hubSpotApiCall(associateCompanyToDeal,companyID,dealID, hubkey);             
+            await hubSpotApiCall(associateContactToDeal,contactID,dealID, hubkey);   
             successCount++;          
           } catch (error) {
             console.log("Failed creating associations for contacts, company and deals.");
@@ -219,7 +230,7 @@ async function checkCompanyRecord(contact, contactID, hubkey){
     }else{
       console.log(`Did not found associated company. Creating New Company...`);
       try {
-        const companyID = await createNewCompany(contact,hubkey);
+        const companyID = await hubSpotApiCall(createNewCompany,contact,hubkey);
         console.log(`Successfully created a new company record with ID: ${companyID}`);
         return companyID;
       } catch (error) {
@@ -387,7 +398,7 @@ async function checkDealRecord(contact, contactID, dealsCache,hubkey, dealStage)
           console.log("\nThere are no associated deal data, create a new deal.");
           
           try {
-            const newDealID = await createNewDeal(contact, contactID, hubkey, dealStage);
+            const newDealID = await hubSpotApiCall(createNewDeal,contact, contactID, hubkey, dealStage);
             return newDealID;
           } catch (error) {
             console.log(`Error checking or creating deal: ${JSON.stringify(error,null,2)}`);
@@ -510,7 +521,7 @@ async function checkContactRecord(contact, contactsCache, hubkey){
         }else{
           console.log("\nThere are no associated contact data, create a new contact.");
           try {
-            const newContactID = await createNewContact(contact,hubkey);  //create a new hubspot contact and returns the id
+            const newContactID = await hubSpotApiCall(createNewContact,contact,hubkey);  //create a new hubspot contact and returns the id
             return newContactID;
           } catch (error) {
             console.log(`Error checking or creating contact: ${error}`);
