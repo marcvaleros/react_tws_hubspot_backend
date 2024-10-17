@@ -11,6 +11,7 @@ const http = require('http');
 const {keepDynoAlive} = require('./self_ping');
 const authRoutes = require('./routes/authRoutes');
 const morgan = require('morgan');
+const { fileProcessingQueue } = require('./worker');
 
 
 const app = express();
@@ -68,44 +69,13 @@ app.use('/api/auth', authRoutes);
 
 app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
   try {
-    const contactBuffer = req.files[0].buffer;
-    const companyBuffer = req.files[1].buffer;
-    const contactBuffer2 = req.files[2].buffer;
-    const projectBuffer = req.files[3].buffer;
-    const filename = req.body.filename;
-    const deal_stage = req.body.deal_stage;
-    hubspot_api_key = req.body.hubspot_api_key;
+    // add the job to queue
+    fileProcessingQueue.add({
+      files: req.files,
+      body: req.body
+    })
 
-    console.log('Parsing contact CSV');
-    const Contact = await parseCsvBuffer(contactBuffer);
-    
-    console.log('Parsing company CSV');
-    const Company = await parseCsvBuffer(companyBuffer);
-    
-    console.log('Importing to HubSpot');
-    const importResponse = await importToHubspot(filename, contactBuffer2, companyBuffer, projectBuffer, hubspot_api_key);
-    
-    console.log('Waiting for operations to complete');
-    const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-    await delay(12000);
-  
-    console.log('Fetching contacts cache');
-    const contactsCache = await getAllContactsToCache(hubspot_api_key);
-    
-    console.log('Fetching deals cache');
-    const dealsCache = await getAllDealsToCache(hubspot_api_key);
-    
-    console.log(JSON.stringify(contactsCache,null,2));
-    console.log(JSON.stringify(dealsCache,null,2));
-    
-    
-    if(importResponse !== 0){
-      const response = await createNewRecords(Contact, Company, contactsCache, dealsCache, broadcastProgress, hubspot_api_key, deal_stage);
-      res.status(200).send({message: response});
-    }else{
-      res.status(400).send({ message: 'Import failed, no records were created.' });
-    }
-
+    res.status(202).send({message: 'Processing started, you will be notified once completed.'});
   }catch (error){
     console.error(error.response ? error.response.data : error.message);
     res.status(error.response ? error.response.status : 500).send(error.response ? error.response.data : 'Server Error');
