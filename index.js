@@ -59,7 +59,7 @@ app.use(morgan('dev'));
 
 //added some slashes
 app.use(cors({
-  origin: 'https://react-tws-hubspot-fe-b3d36e68376c.herokuapp.com/',
+  origin: process.env.FRONTEND_URL,
   methods: ['GET', 'POST', 'OPTIONS', 'PUT'], 
   allowedHeaders: ['Content-Type', 'Authorization'],
   // credentials: true, 
@@ -70,7 +70,7 @@ app.use('/api/auth', authRoutes);
 app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
   try {
     // add the job to queue
-    fileProcessingQueue.add({
+    await fileProcessingQueue.add({
       files: req.files,
       body: req.body
     })
