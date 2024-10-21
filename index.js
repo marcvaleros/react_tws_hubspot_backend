@@ -48,7 +48,6 @@ const uploadToS3 = async (buffer, filename) => {
 
   try{
     await S3client.send(command);
-
     //create a presigned url to access the object(csv file)
     try {
       const clientUrl = await createPresignedUrlWithClient({
@@ -89,8 +88,6 @@ const uploadToS3 = async (buffer, filename) => {
     }
   }
 }
-
-
 
 // Configure multer to use memory storage
 const storage = multer.memoryStorage();
