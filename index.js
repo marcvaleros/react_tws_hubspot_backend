@@ -15,8 +15,8 @@ const {fileProcessingQueue} = require('./worker');
 
 const app = express();
 const port = process.env.PORT || 8080;
-
 const server = http.createServer(app);
+
 let hubspot_api_key;
 
 //S3 bucket client 
@@ -137,7 +137,7 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
       deal_stage,
       hubspot_api_key,
     }, {
-      attempts: 10,
+      attempts: 5,
       backoff: 3000,
     });
 

@@ -1,36 +1,12 @@
 require('dotenv').config();
 
 const axios = require('axios');
-// const {fileProcessingQueue} = require('./queue');
 const {createNewRecords,importToHubspot, getAllContactsToCache, getAllDealsToCache, parseCsvBuffer } = require('./utils/util');
 const Queue = require('bull');
 
 const fileProcessingQueue = new Queue('file-processing', {
   redis: process.env.REDISCLOUD_URL
 });
-
-const WebSocket = require('ws');
-const wss = new WebSocket.Server({ port: 8081 }); // WebSocket server
-
-wss.on('connection', (ws) => {
-  console.log('Client Connected');
-
-  ws.on('message', (message)=>{
-    console.log('Received Message:', message);
-  });
-
-  ws.on('close', () => {
-    console.log('Client Disconnected');
-  });
-});
-
-const broadcastProgress = (progress) => {
-  wss.clients.forEach(client => {
-    if(client.readyState === WebSocket.OPEN){
-      client.send(JSON.stringify({progress}));
-    }
-  });
-};
 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -84,7 +60,7 @@ fileProcessingQueue.process(async (job) => {
     console.log(JSON.stringify(dealsCache,null,2));
     
     if(importResponse !== 0){
-      const response = await createNewRecords(Contact, Company, contactsCache, dealsCache, broadcastProgress, hubspot_api_key, deal_stage);
+      const response = await createNewRecords(Contact, Company, contactsCache, dealsCache, hubspot_api_key, deal_stage);
       return {message: response}
     }else{
       return {message:'Import failed, no records were created.' }

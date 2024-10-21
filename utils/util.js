@@ -6,6 +6,31 @@ const Bottleneck = require('bottleneck');
 
 const HUBSPOT_BASE_URL = 'https://api.hubapi.com';
 
+const WebSocket = require('ws');
+const wss = new WebSocket.Server({ port: 8081 }); // WebSocket server
+
+wss.on('connection', (ws) => {
+  console.log('Client Connected');
+
+  ws.on('message', (message)=>{
+    console.log('Received Message:', message);
+  });
+
+  ws.on('close', () => {
+    console.log('Client Disconnected');
+  });
+});
+
+const broadcastProgress = (progress) => {
+  wss.clients.forEach(client => {
+    if(client.readyState === WebSocket.OPEN){
+      client.send(JSON.stringify({ progress }));
+    } else {
+      console.log('Client not ready for data transmission');
+    }
+  });
+};
+
 const limiter = new Bottleneck({
   minTime: 500,     // Wait 500ms between each request
   maxConcurrent: 1  // Limit to 1 concurrent request
@@ -16,7 +41,7 @@ const hubSpotApiCall = limiter.wrap(async (apiFunction, ...args) => {
   return await apiFunction(...args);
 });
 
-async function createNewRecords(contactData, companyData, contactsCache, dealsCache, broadcastProgress, hubkey, dealStage) {
+async function createNewRecords(contactData, companyData, contactsCache, dealsCache, hubkey, dealStage) {
   try {
     let successCount = 0;
     let failureCount = 0;
