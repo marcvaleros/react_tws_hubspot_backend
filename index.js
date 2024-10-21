@@ -12,7 +12,10 @@ const authRoutes = require('./routes/authRoutes');
 const morgan = require('morgan');
 const { fileProcessingQueue } = require('./worker');
 const path = require('path');
-const AWS = require('aws-sdk');
+const { S3Client, PutObjectCommand, GetObjectCommand, S3ServiceException } = require('@aws-sdk/client-s3');
+const {getSignedUrl} = require('@aws-sdk/s3-request-presigner');
+
+
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -20,42 +23,79 @@ const port = process.env.PORT || 8080;
 const server = http.createServer(app);
 let hubspot_api_key;
 
-const s3 = new AWS.S3({
-  accessKeyId: process.env.AWS_ACCESS_KEY,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.AWS_REGION
-})
+const S3client = new S3Client({
+  region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+});
 
-async function uploadToS3(buffer,filename){
-  const params = {
-    Bucket: process.env.AWS_BUCKET,
-    Key: `files/${Date.now()}_${filename}`,
-    Body: buffer,
-    ContentType: 'text/csv',
-  }
+const createPresignedUrlWithClient = ({ region, bucket, key }) => {
+  // Create an S3 client
+  const client = new S3Client({ region }); 
+  const command = new GetObjectCommand({ Bucket: bucket, Key: key });  
+  return getSignedUrl(client, command, { expiresIn: 3600 });  // Generate a signed URL valid for 1 hour
+};
+
+const uploadToS3 = async (buffer, filename) => {
+    const params = {
+      Bucket: process.env.AWS_BUCKET,
+      Key: `${Date.now()}_${filename}`,
+      Body: buffer, 
+      ContentType: 'text/csv',
+    };
+  
+    const command = new PutObjectCommand(params);
 
   try{
-    const data = await s3.upload(params).promise();
-    console.log(`File Upload Successfuly at ${data.Location}`);
-    return data.Location;    
-  }catch(error){
-    console.log(error);
-    throw err;
+    await S3client.send(command);
+
+    //create a presigned url to access the object(csv file)
+    try {
+      const clientUrl = await createPresignedUrlWithClient({
+        bucket: params.Bucket,
+        region: process.env.AWS_REGION,
+        key: params.Key,
+      });
+
+      console.log("Presigned URL with client: ");
+      console.log(clientUrl);
+      return clientUrl;
+    } catch (caught) {
+      if (caught instanceof Error && caught.name === "CredentialsProviderError") {
+        console.error(
+          `There was an error getting your credentials. Are your local credentials configured?\n${caught.name}: ${caught.message}`,
+        );
+      } else {
+        throw caught;
+      }
+    }
+ 
+  } catch (caught) {
+    if (
+      caught instanceof S3ServiceException &&
+      caught.name === "EntityTooLarge"
+    ) {
+      console.error(
+        `Error from S3 while uploading object to ${process.env.AWS_BUCKET}. \
+        The object was too large. To upload objects larger than 5GB, use the S3 console (160GB max) \
+        or the multipart upload API (5TB max).`,
+      );
+    } else if (caught instanceof S3ServiceException) {
+      console.error(
+        `Error from S3 while uploading object to ${process.env.AWS_BUCKET}.  ${caught.name}: ${caught.message}`,
+      );
+    } else {
+      throw caught;
+    }
   }
 }
 
-// Configure multer storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, 'uploads'));
-  },
-  filename: (req, file, cb) => {
-    const timestamp = Date.now();
-    const uniqueFilename = `${timestamp}-${file.originalname}`;
-    cb(null, uniqueFilename); 
-  }
-});
 
+
+// Configure multer to use memory storage
+const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 app.get('/', (req, res) => {
