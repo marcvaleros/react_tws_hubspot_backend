@@ -1,6 +1,5 @@
 require('dotenv').config();
 
-const { parseCsvBuffer } = require('./utils/util')
 const { uploadInvalidContacts } = require('./google_api');
 const express = require('express');
 const cors = require('cors');
@@ -10,10 +9,9 @@ const http = require('http');
 const {keepDynoAlive} = require('./self_ping');
 const authRoutes = require('./routes/authRoutes');
 const morgan = require('morgan');
-const { fileProcessingQueue } = require('./worker');
-const path = require('path');
 const { S3Client, PutObjectCommand, GetObjectCommand, S3ServiceException } = require('@aws-sdk/client-s3');
 const {getSignedUrl} = require('@aws-sdk/s3-request-presigner');
+const {fileProcessingQueue} = require('./worker');
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -21,6 +19,7 @@ const port = process.env.PORT || 8080;
 const server = http.createServer(app);
 let hubspot_api_key;
 
+//S3 bucket client 
 const S3client = new S3Client({
   region: process.env.AWS_REGION,
   credentials: {
@@ -56,7 +55,7 @@ const uploadToS3 = async (buffer, filename) => {
         key: params.Key,
       });
 
-      console.log("Presigned URL with client: ");
+      // console.log("Presigned URL with client: ");
       console.log(clientUrl);
       return clientUrl;
     } catch (caught) {
@@ -97,7 +96,6 @@ app.get('/', (req, res) => {
   res.send('Your server is running.');
 });
 
-
 // Middleware to parse JSON request body
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -118,6 +116,9 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
     const hubspot_api_key = req.body.hubspot_api_key;
 
     // Upload each file to S3 and get their URLs
+    console.log(req.files[0].originalname, req.files[1].originalname,req.files[2].originalname,req.files[3].originalname);
+    
+
     const contactUrl = await uploadToS3(req.files[0].buffer, req.files[0].originalname);
     const companyUrl = await uploadToS3(req.files[1].buffer, req.files[1].originalname);
     const contact2Url = await uploadToS3(req.files[2].buffer, req.files[2].originalname);
@@ -130,6 +131,16 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
       project: projectUrl    
     };
 
+    fileProcessingQueue.add({
+      fileUrls,
+      filename,
+      deal_stage,
+      hubspot_api_key,
+    }, {
+      attempts: 10,
+      backoff: 3000,
+    });
+
     res.status(200).send({message: 'Processing started, you will be notified once completed.'});
   }catch (error){
     console.log(error);
@@ -139,48 +150,48 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
 })
 
 
-// app.post('/webhook', async (req, res) => {
-//   console.log(req.body);
+app.post('/webhook', async (req, res) => {
+  console.log(req.body);
 
-//   for (const event of req.body){
-//     if(event.subscriptionType === "contact.creation"){
-//       console.log(event.objectId);
-//       try {
-//         await normalizedPhoneNumber(event.objectId, hubspot_api_key);
-//       } catch (error) {
-//         console.log(`Failed normalizing phone number format. ${error}`);
-//       }
-//     }
-//   }
+  for (const event of req.body){
+    if(event.subscriptionType === "contact.creation"){
+      console.log(event.objectId);
+      try {
+        await normalizedPhoneNumber(event.objectId, hubspot_api_key);
+      } catch (error) {
+        console.log(`Failed normalizing phone number format. ${error}`);
+      }
+    }
+  }
 
-//   res.status(200).send("Successfully Formatted Phone Number");
-// })
+  res.status(200).send("Successfully Formatted Phone Number");
+})
 
-// app.post('/upload-to-drive', upload.single('file'),async (req, res) => {
-//   const { file } = req;
+app.post('/upload-to-drive', upload.single('file'),async (req, res) => {
+  const { file } = req;
 
-//   if (!file) {
-//     return res.status(400).send('No file uploaded');
-//   }
+  if (!file) {
+    return res.status(400).send('No file uploaded');
+  }
   
-//   const csvBuffer = Buffer.from(file.buffer); 
-//   const fileStream = new Readable();
-//   fileStream.push(csvBuffer);
-//   fileStream.push(null);
+  const csvBuffer = Buffer.from(file.buffer); 
+  const fileStream = new Readable();
+  fileStream.push(csvBuffer);
+  fileStream.push(null);
   
-//   try {
-//     const webViewLink = await uploadInvalidContacts(file.originalname, fileStream);
+  try {
+    const webViewLink = await uploadInvalidContacts(file.originalname, fileStream);
     
-//     if (webViewLink) {
-//       res.json({ webViewLink });
-//     } else {
-//       res.status(400).send("Failed to upload the file to Google Drive");
-//     }
-//   } catch (error) {
-//     console.error("Error during file upload:", error);
-//     res.status(500).send("Internal Server Error");
-//   }
-// });
+    if (webViewLink) {
+      res.json({ webViewLink });
+    } else {
+      res.status(400).send("Failed to upload the file to Google Drive");
+    }
+  } catch (error) {
+    console.error("Error during file upload:", error);
+    res.status(500).send("Internal Server Error");
+  }
+});
 
 
 // Call the keepDynoAlive function every 25 minutes to avoid the dyno sleeping
