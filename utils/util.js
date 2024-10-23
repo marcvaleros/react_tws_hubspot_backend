@@ -228,8 +228,8 @@ async function checkCompanyRecord(contact, contactID, hubkey){
       console.log(`Associated Company Found. Returning Company ID: ${res.data.results[0].id}`);
       return res.data.results[0].id;
     }else{
-      console.log(`Did not found associated company. Creating New Company...`);
       try {
+        console.log(`Did not found associated company. Creating New Company...`);
         const companyID = await hubSpotApiCall(createNewCompany,contact,hubkey);
         console.log(`Successfully created a new company record with ID: ${companyID}`);
         return companyID;
@@ -247,17 +247,17 @@ async function checkCompanyRecord(contact, contactID, hubkey){
 async function createNewCompany(contact,hubkey){
   const {Company, Phone, Email, Website, City, State, ZIP} = contact;
   const Domain = getDomainName(Email, Website);
-  const industry = contact["Project Category"].toUpperCase();
+
+  console.log(Domain);
   
   const requestBody = {
     "properties": {
       "name": Company,
       "domain": Domain,
-      "city": City,
-      "industry": industry,
-      "phone": Phone,
-      "state": State,
-      "zip": ZIP,
+      // "city": City,
+      // "phone": Phone,
+      // "state": State,
+      // "zip": ZIP,
     }
   }
   
