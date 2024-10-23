@@ -39,6 +39,7 @@
     "path": "^0.12.7",
     "redis": "^4.7.0",
     "sequelize": "^6.37.3",
+    "socket.io": "^4.8.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {

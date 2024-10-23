@@ -41,39 +41,42 @@ const hubSpotApiCall = limiter.wrap(async (apiFunction, ...args) => {
   return await apiFunction(...args);
 });
 
-async function createNewRecords(contactData, companyData, contactsCache, dealsCache, hubkey, dealStage) {
+
+async function createNewRecords(contactData, companyData, contactsCache, dealsCache, hubkey, dealStage, job) {
   try {
     let successCount = 0;
     let failureCount = 0;
     const totalRecords = contactData.length;
+    const baseProgress = 20;  
     console.log(`This is the total contact records: ${totalRecords}`);
-    
+
     // Function to update progress
     const updateProgress = (currentIndex) => {
-      const progressPercentage = Math.round((currentIndex / totalRecords) * 100);
-      broadcastProgress(progressPercentage);
+      const progressPercentage = baseProgress + Math.round(((currentIndex / totalRecords) * 80));  // Distribute remaining 80% over the records
+      job.progress(progressPercentage);  // Use job.progress to update the progress
     };
-    
-    for (const [index,contact] of contactData.entries()) {
-      const contactID = await hubSpotApiCall(checkContactRecord,contact, contactsCache, hubkey);
-      if (contactID !== 0){
-        const companyID = await hubSpotApiCall(checkCompanyRecord,contact, contactID, hubkey);
-        const dealID = await hubSpotApiCall(checkDealRecord,contact, contactID, dealsCache, hubkey, dealStage);        //check if the deal already existed or create a new one, returns id
-        if(dealID && companyID){
+
+    for (const [index, contact] of contactData.entries()) {
+      const contactID = await hubSpotApiCall(checkContactRecord, contact, contactsCache, hubkey);
+      if (contactID !== 0) {
+        const companyID = await hubSpotApiCall(checkCompanyRecord, contact, contactID, hubkey);
+        const dealID = await hubSpotApiCall(checkDealRecord, contact, contactID, dealsCache, hubkey, dealStage);
+        
+        if (dealID && companyID) {
           try {
-            await hubSpotApiCall(associateCompanyToDeal,companyID,dealID, hubkey);             
-            await hubSpotApiCall(associateContactToDeal,contactID,dealID, hubkey);   
-            successCount++;          
+            await hubSpotApiCall(associateCompanyToDeal, companyID, dealID, hubkey);
+            await hubSpotApiCall(associateContactToDeal, contactID, dealID, hubkey);
+            successCount++;
           } catch (error) {
-            console.log("Failed creating associations for contacts, company and deals.");
+            console.log("Failed creating associations for contacts, company, and deals.");
             failureCount++;
           }
-        }else{
+        } else {
           console.log("Company ID or Deal ID is undefined.");
           failureCount++;
         }
-      }else{
-        console.log("Contact ID is undefined. Checking For Deal Records Failed.");
+      } else {
+        console.log("Contact ID is undefined. Checking for Deal Records Failed.");
         failureCount++;
       }
 
@@ -96,7 +99,6 @@ async function createNewRecords(contactData, companyData, contactsCache, dealsCa
   }
 }
 
-//Function that search for recently created contacts with their ids & information
 async function getAllContactsToCache(hubkey){
   let allContacts = [];
   let hasMore = true;

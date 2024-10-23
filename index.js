@@ -11,11 +11,18 @@ const authRoutes = require('./routes/authRoutes');
 const morgan = require('morgan');
 const { S3Client, PutObjectCommand, GetObjectCommand, S3ServiceException } = require('@aws-sdk/client-s3');
 const {getSignedUrl} = require('@aws-sdk/s3-request-presigner');
-const {fileProcessingQueue} = require('./worker');
+const { processFileQueue } = require('./worker');
 
 const app = express();
 const port = process.env.PORT || 8080;
 const server = http.createServer(app);
+const io = require('socket.io')(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL,
+    methods: ["GET", "POST"]
+  }
+});
+const fileProcessingQueue = processFileQueue(io);
 
 let hubspot_api_key;
 
@@ -118,7 +125,6 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
     // Upload each file to S3 and get their URLs
     console.log(req.files[0].originalname, req.files[1].originalname,req.files[2].originalname,req.files[3].originalname);
     
-
     const contactUrl = await uploadToS3(req.files[0].buffer, req.files[0].originalname);
     const companyUrl = await uploadToS3(req.files[1].buffer, req.files[1].originalname);
     const contact2Url = await uploadToS3(req.files[2].buffer, req.files[2].originalname);
@@ -137,10 +143,11 @@ app.post('/upload/contacts', upload.array('files', 4), async (req, res) => {
       deal_stage,
       hubspot_api_key,
     }, {
-      attempts: 5,
+      attempts: 10,
       backoff: 3000,
     });
 
+    io.emit('processing_started', { message: 'Processing has started for the uploaded files.' });
     res.status(200).send({message: 'Processing started, you will be notified once completed.'});
   }catch (error){
     console.log(error);
