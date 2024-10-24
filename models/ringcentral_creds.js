@@ -1,7 +1,7 @@
 'use strict';
 
 module.exports = (sequelize, DataTypes) => {
-  const RingCentral = sequelize.define('RingcentralCreds', {
+  const RingCentral = sequelize.define('RingCentral', {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
