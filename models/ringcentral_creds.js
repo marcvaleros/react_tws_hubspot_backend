@@ -36,7 +36,7 @@ module.exports = (sequelize, DataTypes) => {
   });
 
   RingCentral.associate = function(models) {
-    RingCentral.belongsTo(models.Users, { foreignKey: 'user_creds', as:'ringcentral_creds' });
+    RingCentral.belongsTo(models.User, { foreignKey: 'user_creds', as:'ringcentral_creds' });
   }
 
   return RingCentral;
