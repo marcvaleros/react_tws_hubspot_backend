@@ -45,6 +45,7 @@ module.exports = (sequelize, DataTypes) => {
 
   User.associate = function(models) {
     User.belongsTo(models.TWSFranchisee, { foreignKey: 'assoc_tws', as:'franchisee' });
+    User.hasOne(models.RingCentral, { foreignKey: 'user_creds', as: 'ringcentral_creds', onDelete: 'SET NULL' });
   }
 
   return User;
